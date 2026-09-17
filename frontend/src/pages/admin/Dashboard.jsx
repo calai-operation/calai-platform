@@ -247,6 +247,7 @@ const Dashboard = () => {
             <OverviewTabContent 
               dashboardData={dashboardData} 
               operationsData={operationsData} 
+              setActiveTab={setActiveTab}
             />
           ) : activeTab === 'call-log' ? (
             <CallLogTabContent calls={operationsData?.calls} />

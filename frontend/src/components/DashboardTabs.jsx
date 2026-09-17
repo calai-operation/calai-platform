@@ -15,10 +15,10 @@ const DashboardTabs = ({ activeTab, setActiveTab, failedCallsCount = 0 }) => {
         <button
           key={tab.id}
           onClick={() => setActiveTab(tab.id)}
-          className={`flex items-center gap-2 py-3 border-b-2 transition-colors whitespace-nowrap -mb-[1px] ${
+          className={`relative flex items-center gap-2 py-3 transition-colors whitespace-nowrap ${
             activeTab === tab.id 
-              ? 'border-[#2563eb] text-white font-medium' 
-              : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-700'
+              ? 'text-[#3b82f6] font-medium after:absolute after:bottom-[-1px] after:left-0 after:w-full after:h-[2px] after:bg-[#3b82f6]' 
+              : 'text-gray-400 hover:text-gray-300'
           }`}
         >
           {tab.label}

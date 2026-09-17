@@ -6,11 +6,11 @@ import PlanDistribution from './PlanDistribution';
 import TenantDistribution from './TenantDistribution';
 import MonthByMonth from './MonthByMonth';
 
-const OverviewTabContent = ({ dashboardData, operationsData }) => {
+const OverviewTabContent = ({ dashboardData, operationsData, setActiveTab }) => {
   return (
     <>
       {/* Main Table */}
-      <AllTenantsList tenants={operationsData?.tenants} />
+      <AllTenantsList tenants={operationsData?.tenants} setActiveTab={setActiveTab} />
       
       {/* Charts and Services Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8 mt-2">
