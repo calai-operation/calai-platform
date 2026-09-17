@@ -98,8 +98,8 @@ export default function Table({ TableHeads, TableRows, headClass, tableClass, em
                     style={{ width: header.column.columnDef.size }}
                   >
                     <div 
-                      className="flex items-center gap-2 cursor-pointer hover:text-gray-300 transition-colors"
-                      onClick={header.column.getToggleSortingHandler()}
+                      className={`flex items-center gap-2 ${header.column.getCanSort() ? 'cursor-pointer hover:text-gray-300 transition-colors' : ''}`}
+                      onClick={header.column.getCanSort() ? header.column.getToggleSortingHandler() : undefined}
                     >
                       {header.isPlaceholder
                         ? null

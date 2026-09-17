@@ -1,76 +1,94 @@
-import React from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import React, { useMemo } from 'react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+const COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7'];
 
-const renderCustomizedLabel = (props) => {
-  const { cx, cy, midAngle, outerRadius, value, name, fill } = props;
-  const RADIAN = Math.PI / 180;
-  const radius = outerRadius + 35;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-  return (
-    <text 
-      x={x} 
-      y={y} 
-      fill={fill} 
-      textAnchor={x > cx ? 'start' : 'end'} 
-      dominantBaseline="central"
-      className="text-sm font-medium"
-    >
-      {`${name}: ${value}%`}
-    </text>
-  );
-};
-
-const PlanDistribution = ({ apiData }) => {
-  const data = (apiData || []).map((item, index) => ({
-    name: item.name,
-    value: item.percentage,
-    count: item.count,
-    color: COLORS[index % COLORS.length]
-  }));
+const PlanDistribution = ({ data: apiData }) => {
+  const data = useMemo(() => {
+    return (apiData || [
+      { name: 'Enterprise', percentage: 40, count: 12 },
+      { name: 'Pro', percentage: 30, count: 9 },
+      { name: 'Starter', percentage: 20, count: 6 },
+      { name: 'Free Trial', percentage: 10, count: 3 }
+    ]).map((item, index) => ({
+      name: item.name,
+      value: item.percentage || item.value,
+      count: item.count,
+      color: COLORS[index % COLORS.length]
+    }));
+  }, [apiData]);
 
   const hasData = data.some(d => d.value > 0);
-  const renderData = hasData ? data.filter(d => d.value > 0) : [{ name: 'No Data', value: 100, color: '#333' }];
+  const renderData = hasData ? data.filter(d => d.value > 0) : [{ name: 'No Data', value: 100, color: '#262626' }];
+  const totalCount = data.reduce((acc, curr) => acc + curr.count, 0);
 
   return (
-    <div className="bg-[#191919] rounded-2xl p-6 border border-gray-800/50 flex flex-col h-full min-h-[400px]">
-      <h3 className="text-white text-lg font-medium mb-4">Plan Distribution</h3>
-      
-      <div className="flex-1 w-full min-h-[250px] relative">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={renderData}
-              cx="50%"
-              cy="50%"
-              outerRadius={100}
-              dataKey="value"
-              stroke="#ffffff"
-              strokeWidth={1}
-              label={hasData ? renderCustomizedLabel : false}
-              labelLine={false}
-              isAnimationActive={true}
-            >
-              {renderData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Pie>
-          </PieChart>
-        </ResponsiveContainer>
+    <div className="bg-[#161616] border border-[#262626] rounded-xl p-6 h-full flex flex-col">
+      <div className="mb-6">
+        <h2 className="text-[18px] font-semibold text-white mb-1">Plan distribution</h2>
+        <p className="text-[13px] text-gray-400">Current active subscription plans</p>
       </div>
-
-      <div className="flex justify-center flex-wrap items-center gap-6 mt-4 pb-2">
-        {data.map((entry, index) => (
-          <div key={index} className="flex items-center gap-2">
-            <div className="w-3.5 h-3.5" style={{ backgroundColor: entry.color }}></div>
-            <span className="text-[15px] font-medium" style={{ color: entry.color }}>
-              {entry.name} ({entry.count})
-            </span>
+      
+      <div className="flex-1 flex flex-col sm:flex-row items-center justify-between gap-8 sm:gap-4 mt-2">
+        {/* Left: Donut Chart with Center Text */}
+        <div className="relative w-[180px] h-[180px] shrink-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={renderData}
+                cx="50%"
+                cy="50%"
+                innerRadius={65}
+                outerRadius={85}
+                paddingAngle={4}
+                cornerRadius={6}
+                dataKey="value"
+                stroke="none"
+                isAnimationActive={true}
+              >
+                {renderData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#161616', borderColor: '#262626', borderRadius: '8px', color: '#f3f4f6', fontSize: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)' }}
+                itemStyle={{ color: '#f3f4f6' }}
+                formatter={(value, name) => [`${value}%`, name]}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          
+          {/* Center Text */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span className="text-3xl font-bold text-white leading-none">{totalCount}</span>
+            <span className="text-[11px] text-gray-500 font-medium mt-1 uppercase tracking-wider">Plans</span>
           </div>
-        ))}
+        </div>
+
+        {/* Right: Detailed Legend with Progress Bars */}
+        <div className="flex-1 w-full flex flex-col justify-center gap-4">
+          {data.map((entry, index) => (
+            <div key={index} className="flex flex-col gap-1.5">
+              <div className="flex justify-between items-center text-[13px]">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color, boxShadow: `0 0 8px ${entry.color}66` }}></div>
+                  <span className="text-gray-300 font-medium">{entry.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-white font-semibold">{entry.count}</span>
+                  <span className="text-gray-500 w-8 text-right">{entry.value}%</span>
+                </div>
+              </div>
+              {/* Progress Bar */}
+              <div className="w-full h-1.5 bg-[#262626] rounded-full overflow-hidden">
+                <div 
+                  className="h-full rounded-full transition-all duration-1000 ease-out" 
+                  style={{ width: `${entry.value}%`, backgroundColor: entry.color }}
+                ></div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

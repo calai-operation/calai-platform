@@ -1,132 +1,145 @@
-import React, { useState, useMemo } from 'react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Icon } from '@iconify/react';
+import React, { useMemo } from 'react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 
-export default function CallActivityChart({ daily = [], weekly = [] }) {
-  const [view, setView] = useState('daily'); // 'daily' or 'weekly'
-  const [metric, setMetric] = useState('calls'); // 'calls' or 'minutes'
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  
+const staticData = [
+  { name: '01 Sept', calls: 0, failures: 0 },
+  { name: '03 Sept', calls: 2, failures: 0 },
+  { name: '05 Sept', calls: 0, failures: 0 },
+  { name: '07 Sept', calls: 9, failures: 4 },
+  { name: '09 Sept', calls: 31, failures: 2 },
+  { name: '11 Sept', calls: 8, failures: 1 },
+  { name: '13 Sept', calls: 0, failures: 0 },
+  { name: '15 Sept', calls: 0, failures: 0 },
+  { name: '17 Sept', calls: 0, failures: 0 },
+];
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-[#1e2330] border border-[#2e3646] p-3 rounded-xl shadow-lg min-w-[120px]">
+        <p className="text-[14px] font-semibold text-white mb-2">{label}</p>
+        <p className="text-[14px] text-[#5e8cf2] mb-1">
+          calls : {payload[0]?.value || 0}
+        </p>
+        <p className="text-[14px] text-[#e3716a]">
+          failed : {payload[1]?.value || 0}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const CallActivityChart = ({ calls = [], failedCalls = [], period }) => {
   const data = useMemo(() => {
-    const rawData = view === 'daily' ? daily : weekly;
-    return rawData.map(item => ({
-      ...item,
-      // Format date for the X-axis (e.g., "9 Sept")
-      formattedDate: new Date(item.date).toLocaleDateString("en-GB", { 
-        day: 'numeric', 
-        month: 'short' 
-      })
-    }));
-  }, [daily, weekly, view]);
+    const map = {};
 
-  const totalInView = data.reduce((sum, item) => sum + Number(item[metric] || 0), 0);
-  const totalFormatted = metric === 'minutes' ? totalInView.toFixed(0) : totalInView;
+    if (period?.start && period?.end) {
+      const startDate = new Date(period.start);
+      const endDate = new Date(period.end);
+      startDate.setUTCHours(0, 0, 0, 0);
+      endDate.setUTCHours(0, 0, 0, 0);
+
+      // Pre-fill all dates in range with 0 calls/failures
+      for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
+        const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });
+        map[dateStr] = { name: dateStr, calls: 0, failures: 0, time: d.getTime() };
+      }
+    } else if (!calls.length && !failedCalls.length) {
+      return staticData;
+    }
+
+    const process = (arr, isFailure) => {
+      arr.forEach(c => {
+        const d = new Date(c.startedAt || c.createdAt);
+        if (isNaN(d.getTime())) return;
+        const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });
+        
+        if (!map[dateStr]) {
+          map[dateStr] = { name: dateStr, calls: 0, failures: 0, time: d.getTime() };
+        }
+        
+        if (isFailure) map[dateStr].failures += 1;
+        else map[dateStr].calls += 1;
+      });
+    };
+    
+    process(calls, false);
+    process(failedCalls, true);
+    
+    const sortedDates = Object.values(map).sort((a, b) => a.time - b.time);
+    return sortedDates.length > 0 ? sortedDates : staticData;
+  }, [calls, failedCalls, period]);
   
   return (
-    <div className="bg-[#18181A] border border-gray-800/50 rounded-2xl p-6 h-full flex flex-col relative">
-      {/* Header section */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-8">
+    <div className="bg-[#161616] border border-[#262626] rounded-xl p-6 h-full flex flex-col">
+      <div className="flex justify-between items-start mb-8">
         <div>
-          <h2 className="text-xl font-semibold text-white mb-1">Call activity</h2>
-          <p className="text-gray-400 text-sm">Last {view === 'daily' ? '28 days' : '12 weeks'} · UTC</p>
+          <h2 className="text-[18px] font-semibold text-white mb-1">Call activity</h2>
+          <p className="text-[13px] text-gray-400">Your call volume over the selected period</p>
         </div>
-        
-        {/* Controls */}
-        <div className="flex items-center gap-3 mt-4 sm:mt-0">
-          <div className="relative">
-            <div 
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="bg-[#262626] border border-gray-700/50 rounded-lg px-3 py-1.5 flex items-center justify-between gap-2 cursor-pointer text-sm text-gray-300 min-w-[90px] select-none"
-            >
-              <span className="capitalize">{metric}</span>
-              <Icon icon="lucide:chevron-down" className="text-gray-500 w-4 h-4" />
-            </div>
-            
-            {isDropdownOpen && (
-              <div className="absolute top-full right-0 mt-2 w-full bg-[#262626] border border-gray-700/50 rounded-lg shadow-lg overflow-hidden z-20">
-                <div 
-                  onClick={() => { setMetric('calls'); setIsDropdownOpen(false); }}
-                  className="px-3 py-2 text-sm text-gray-300 hover:bg-gray-700/50 hover:text-white cursor-pointer transition-colors"
-                >
-                  Calls
-                </div>
-                <div 
-                  onClick={() => { setMetric('minutes'); setIsDropdownOpen(false); }}
-                  className="px-3 py-2 text-sm text-gray-300 hover:bg-gray-700/50 hover:text-white cursor-pointer transition-colors"
-                >
-                  Minutes
-                </div>
-              </div>
-            )}
+        <div className="flex items-center gap-4 text-[11px] text-gray-400 mt-1">
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#3b82f6]"></div>
+            <span>Calls</span>
           </div>
-          
-          <div className="bg-[#262626] p-1 rounded-lg flex text-sm font-medium">
-            <button 
-              onClick={() => setView('daily')}
-              className={`px-4 py-1 rounded-md transition-colors ${view === 'daily' ? 'bg-[#2563EB] text-white' : 'text-gray-400 hover:text-white'}`}
-            >
-              Daily
-            </button>
-            <button 
-              onClick={() => setView('weekly')}
-              className={`px-4 py-1 rounded-md transition-colors ${view === 'weekly' ? 'bg-[#2563EB] text-white' : 'text-gray-400 hover:text-white'}`}
-            >
-              Weekly
-            </button>
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#f87171]"></div>
+            <span>Failures</span>
           </div>
         </div>
       </div>
       
-      {/* Total Metric */}
-      <div className="mb-6 flex items-baseline gap-2">
-        <span className="text-4xl font-bold text-white">{totalFormatted}</span>
-        <span className="text-gray-400 text-sm">{metric} in this view</span>
-      </div>
-
-      {/* Chart */}
-      <div className="flex-1 w-full h-[250px] min-h-[250px] -ml-4">
+      <div className="flex-1 w-full h-[250px] -ml-4">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#2563EB" stopOpacity={0.4}/>
-                <stop offset="95%" stopColor="#2563EB" stopOpacity={0}/>
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" opacity={0.5} />
+            <CartesianGrid vertical={false} stroke="#262626" strokeDasharray="3 3" />
             <XAxis 
-              dataKey="formattedDate" 
+              dataKey="name" 
               axisLine={false} 
               tickLine={false} 
-              tick={{ fill: '#9CA3AF', fontSize: 12 }} 
+              tick={{ fill: '#6b7280', fontSize: 11 }} 
               dy={10}
               minTickGap={20}
             />
             <YAxis 
               axisLine={false} 
               tickLine={false} 
-              tick={{ fill: '#9CA3AF', fontSize: 12 }} 
+              tick={{ fill: '#6b7280', fontSize: 11 }} 
+              ticks={[0, 8, 16, 24, 32]}
+              dx={-10}
             />
             <Tooltip 
-              contentStyle={{ backgroundColor: '#18181A', borderColor: '#333', borderRadius: '8px', color: '#fff' }}
-              itemStyle={{ color: '#fff' }}
+              content={<CustomTooltip />}
+              cursor={{ stroke: '#fff', strokeWidth: 1.5, opacity: 0.8 }}
             />
             <Area 
               type="monotone" 
-              dataKey={metric} 
-              stroke="#2563EB" 
+              dataKey="calls" 
+              stroke="#3b82f6" 
               strokeWidth={2}
               fillOpacity={1} 
               fill="url(#colorCalls)" 
             />
+            <Area 
+              type="monotone" 
+              dataKey="failures" 
+              stroke="#f87171" 
+              strokeWidth={1.5}
+              fillOpacity={0} 
+              fill="none" 
+            />
           </AreaChart>
         </ResponsiveContainer>
       </div>
-
-      {/* Footer text */}
-      <div className="mt-6 pt-4 border-t border-gray-800/50">
-        <p className="text-[11px] text-gray-500">The current day or week is still in progress.</p>
-      </div>
     </div>
   );
-}
+};
+
+export default CallActivityChart;
