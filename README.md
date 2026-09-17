@@ -1,0 +1,177 @@
+# Voice AI SaaS Platform (`calai.info`) — Production Deployment Guide
+
+Production-ready Docker setup for **React Frontend**, **Node.js Express Backend**, **Python FastAPI AI Microservice**, **PostgreSQL**, **Redis**, and **Nginx Reverse Proxy**.
+
+---
+
+## 1. Project Overview
+
+This repository hosts a multi-tenant Voice AI ordering & calling platform integrated with Vapi AI and OpenAI.
+
+- **Frontend**: React + Vite + Tailwind CSS (`https://calai.info`)
+- **Backend / API**: Node.js + Express + Prisma ORM + Socket.io (`https://api.calai.info`)
+- **AI Microservice**: Python 3.11 + FastAPI + Uvicorn (`https://ai.calai.info`)
+- **Database**: PostgreSQL 15
+- **Cache & Socket Queue**: Redis 7
+- **Reverse Proxy**: Nginx with SSL terminate support
+
+---
+
+## 2. Architecture Diagram
+
+```text
+                    Internet (Ports 80 / 443)
+                               |
+                               v
+                    [ Nginx Reverse Proxy ]
+                               |
+     +-------------------------+-------------------------+
+     |                         |                         |
+     v                         v                         v
+calai.info               api.calai.info            ai.calai.info
+(React SPA)              (Node.js API)           (FastAPI Service)
+     |                         |                         |
+     +------------------------>|                         |
+                               v                         |
+                         [PostgreSQL 15] <---------------+
+                               ^                         
+                               |                         
+                           [Redis 7]                     
+```
+
+---
+
+## 3. Environment Configuration
+
+### Setup `.env` File
+
+Copy the template file to `.env` on your target Linux deployment server:
+
+```bash
+cp .env.example .env
+```
+
+Ensure the following variables are filled with real secrets:
+
+| Variable | Description | Example / Note |
+|---|---|---|
+| `POSTGRES_PASSWORD` | PostgreSQL master password | `a_strong_random_password` |
+| `DATABASE_URL` | Prisma DB connection string | `postgresql://postgres:password@postgres:5432/calai_voice_db?schema=public` |
+| `JWT_SECRET_TOKEN` | Auth signing secret | Random 32+ char string |
+| `OPENAI_API_KEY` | OpenAI API key | `sk-proj-...` |
+| `VAPI_API_KEY` | Vapi voice platform API key | `2e18ca98-...` |
+| `AI_SERVICE_URL` | Node -> FastAPI internal URL | `http://ai-service:8000` |
+| `EXTERNAL_BACKEND_URL` | FastAPI -> Node internal webhook | `http://backend:8000/api/webhook/vapi` |
+| `VITE_API_BASE_URL` | React API base URL | `https://api.calai.info/api` |
+
+---
+
+## 4. Production Deployment Procedure
+
+### Prerequisites
+- Linux Server (Ubuntu 22.04 LTS / Debian 12 recommended)
+- Docker & Docker Compose plugin installed (`docker compose version >= v2.20`)
+- DNS A Records pointing `calai.info`, `api.calai.info`, and `ai.calai.info` to server IP.
+
+### Step 1: Clone Repository
+```bash
+git clone <your-repository-url> /opt/calai-platform
+cd /opt/calai-platform
+```
+
+### Step 2: Configure Environment
+```bash
+cp .env.example .env
+nano .env  # Edit production values
+```
+
+### Step 3: Build & Start Services
+```bash
+docker compose build --no-cache
+docker compose up -d
+```
+
+### Step 4: Verify Container Readiness & Health
+```bash
+docker compose ps
+```
+Ensure all 6 containers (`calai-postgres`, `calai-redis`, `calai-backend`, `calai-ai-service`, `calai-frontend`, `calai-nginx`) show status `healthy` or `running`.
+
+---
+
+## 5. Database Migrations
+
+Database schema migrations run **automatically** on backend container initialization via `npx prisma migrate deploy`.
+
+If manual migration verification is required:
+
+```bash
+# Run pending Prisma migrations
+docker compose exec backend npx prisma migrate deploy
+
+# Check migration status
+docker compose exec backend npx prisma migrate status
+
+# Seed initial platform data (if needed)
+docker compose exec backend node prisma/seed.js
+```
+
+> [!WARNING]
+> Never run `npx prisma migrate dev` or `prisma migrate reset` in production, as these commands drop the target database tables.
+
+---
+
+## 6. SSL Certificate Installation (Let's Encrypt / Certbot)
+
+Once DNS has propagated and Nginx is running:
+
+1. Install Certbot on the host:
+```bash
+sudo apt update && sudo apt install -y certbot
+```
+
+2. Request certificates for all 3 domains using webroot mode:
+```bash
+sudo certbot certonly --webroot -w /var/lib/docker/volumes/project_38_fahad-saas-based-voice-agnet_certbot_var/_data \
+  -d calai.info -d www.calai.info -d api.calai.info -d ai.calai.info
+```
+
+3. Enable HTTPS in Nginx configuration and reload:
+```bash
+docker compose exec nginx nginx -s reload
+```
+
+---
+
+## 7. Logs & Maintenance Commands
+
+### Inspect Live Logs
+```bash
+# All services
+docker compose logs -f
+
+# Specific microservice
+docker compose logs -f backend
+docker compose logs -f ai-service
+docker compose logs -f nginx
+```
+
+### Restart Platform
+```bash
+docker compose restart
+```
+
+### Redeploy / Update to New Version
+```bash
+git pull origin main
+docker compose build --no-cache
+docker compose up -d
+```
+
+---
+
+## 8. Troubleshooting
+
+- **502 Bad Gateway from Nginx**: Verify upstream containers are healthy: `docker compose ps`. Check Nginx error logs: `docker compose logs nginx`.
+- **Database Connection Error**: Verify `DATABASE_URL` matches `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` in `.env`.
+- **FastAPI / Vapi Callback Timeout**: Ensure `VAPI_SERVER_URL` is configured to `https://api.calai.info/api/webhook/vapi` so Vapi can send tool/report callbacks to the API.

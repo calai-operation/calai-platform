@@ -1,0 +1,7 @@
+services:
+  backend:
+    environment:
+      ADMIN_REPORTING_SECRET_DIR: /run/calai-reporting
+    volumes:
+      - /var/lib/calai-reporting:/run/calai-reporting:ro
+      - /var/lib/calai-uploads:/app/uploads

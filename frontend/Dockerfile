@@ -1,0 +1,34 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --prefer-offline --no-audit
+
+COPY . .
+
+# Build Arguments for Frontend Environment Variables
+ARG VITE_API_BASE_URL=https://api.calai.info/api
+ARG VITE_VAPI_PUBLIC_KEY
+ARG VITE_EMAILJS_SERVICE_ID
+ARG VITE_EMAILJS_TEMPLATE_ID
+ARG VITE_EMAILJS_ENTERPRISE_TEMPLATE_ID
+ARG VITE_EMAILJS_PUBLIC_KEY
+
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_VAPI_PUBLIC_KEY=${VITE_VAPI_PUBLIC_KEY}
+ENV VITE_EMAILJS_SERVICE_ID=${VITE_EMAILJS_SERVICE_ID}
+ENV VITE_EMAILJS_TEMPLATE_ID=${VITE_EMAILJS_TEMPLATE_ID}
+ENV VITE_EMAILJS_ENTERPRISE_TEMPLATE_ID=${VITE_EMAILJS_ENTERPRISE_TEMPLATE_ID}
+ENV VITE_EMAILJS_PUBLIC_KEY=${VITE_EMAILJS_PUBLIC_KEY}
+
+RUN npm run build
+
+FROM nginx:alpine AS runner
+
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

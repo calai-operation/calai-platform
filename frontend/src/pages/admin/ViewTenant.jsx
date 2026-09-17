@@ -1,0 +1,854 @@
+import React, { useState } from "react";
+import { useParams } from "react-router-dom";
+import { Icon } from "@iconify/react";
+import {
+  FileText,
+  X,
+  Bot,
+  User,
+  Download,
+  Loader2,
+  Eye,
+  Printer,
+  Trash2,
+} from "lucide-react";
+import { jsPDF } from "jspdf";
+import toast from "react-hot-toast";
+import Table from "../../components/Table";
+import InputField from "../../components/Inputfield";
+import Dropdown from "../../components/Dropdown";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import useAxiosSecure from "../../hooks/useAxiosSecure";
+import TenantOverview from "./TenantOverview";
+
+const ViewTenant = () => {
+  const { id } = useParams();
+  const axiosSecure = useAxiosSecure();
+  const queryClient = useQueryClient();
+
+  const [activeTab, setActiveTab] = useState("agents");
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    type: null,
+    data: null,
+  });
+
+
+  const deleteAgentMutation = useMutation({
+    mutationFn: async (agentId) => {
+      const res = await axiosSecure.delete(`/system-owner/agent/${agentId}`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(["tenantAgents", id]);
+      toast.success("Agent deleted successfully");
+      setModalState({ isOpen: false, type: null, data: null });
+    },
+    onError: (err) => {
+      toast.error(err?.response?.data?.message || "Failed to delete agent");
+    },
+  });
+
+  const handleActionSelect = (option, row) => {
+    setModalState({ isOpen: true, type: option, data: row });
+  };
+
+  const handleDownload = () => {
+    if (!modalState.data?.id) return;
+    try {
+      const doc = new jsPDF();
+      doc.setFontSize(16);
+      doc.text(`Call ${modalState.type}`, 20, 20);
+      doc.setFontSize(12);
+
+      let y = 30;
+      if (modalState.type === "Call Summary") {
+        const text = modalState.data.summary || "No summary available.";
+        const lines = doc.splitTextToSize(text, 170);
+        doc.text(lines, 20, y);
+      } else {
+        const parseTranscript = (str) => {
+          if (!str) return [];
+          return str
+            .split("\n")
+            .filter((l) => l.trim())
+            .map((line) => {
+              if (line.startsWith("User: "))
+                return { role: "User", content: line.replace("User: ", "") };
+              if (line.startsWith("AI: "))
+                return { role: "AI", content: line.replace("AI: ", "") };
+              return { role: "AI", content: line };
+            });
+        };
+        const transcriptLines = parseTranscript(modalState.data.transcript);
+        transcriptLines.forEach((msg) => {
+          if (y > 270) {
+            doc.addPage();
+            y = 20;
+          }
+          const lines = doc.splitTextToSize(`${msg.role}: ${msg.content}`, 170);
+          doc.text(lines, 20, y);
+          y += lines.length * 7;
+        });
+      }
+      doc.save(
+        `Call_${modalState.type.replace(/\s+/g, "_")}_${modalState.data.id}.pdf`,
+      );
+      toast.success("Download complete");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to download PDF");
+    }
+  };
+
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const orderProducts = selectedOrder?.items || [];
+
+  const handleViewOrder = (row) => {
+    setSelectedOrder(row);
+  };
+
+  const closeOrderModal = () => {
+    setSelectedOrder(null);
+  };
+
+  const handlePrintOrder = async () => {
+    if (!selectedOrder) return;
+    const toastId = toast.loading("Sending to printer...");
+    try {
+      await axiosSecure.get(`/business-owner/order/download/${selectedOrder.id}`);
+      toast.dismiss(toastId);
+      toast.success("Order sent to printer successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.dismiss(toastId);
+      const errorMessage = err.response?.data?.message || "Failed to print. Please check your printer connection.";
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleDownloadOrder = async () => {
+    if (!selectedOrder) return;
+    try {
+      const toastId = toast.loading("Downloading receipt...");
+      const res = await axiosSecure.get(
+        `/business-owner/order/download-receipt/${selectedOrder.id}`,
+        {
+          responseType: "text",
+        },
+      );
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: "text/plain" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `Receipt_${selectedOrder.id}.txt`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      toast.success("Download complete", { id: toastId });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to download receipt.");
+    }
+  };
+
+
+
+  const {
+    data: tenantResponse,
+    isLoading,
+    isError,
+    error,
+    refetch: refetchTenant,
+  } = useQuery({
+    queryKey: ["tenant", id],
+    queryFn: async () => {
+      const res = await axiosSecure.get(`/system-owner/tenants/${id}`);
+      return res.data;
+    },
+  });
+
+
+  const { data: agentsResponse, isLoading: isAgentsLoading } = useQuery({
+    queryKey: ["tenantAgents", id],
+    queryFn: async () => {
+      const res = await axiosSecure.get(
+        `/system-owner/individual-tenant/${id}/agents`,
+      );
+      return res.data;
+    },
+  });
+
+
+
+  const { data: billingResponse, isLoading: isBillingLoading } = useQuery({
+    queryKey: ["tenantBilling", id],
+    queryFn: async () => {
+      const res = await axiosSecure.get(
+        `/system-owner/individual-tenant/${id}/billing`,
+      );
+      return res.data;
+    },
+  });
+
+  const { data: callsResponse, isLoading: isCallsLoading } = useQuery({
+    queryKey: ["tenantCalls", id],
+    queryFn: async () => {
+      const res = await axiosSecure.get(
+        `/system-owner/individual-tenant/${id}/calls`,
+      );
+      return res.data;
+    },
+  });
+
+  const { data: ordersResponse, isLoading: isOrdersLoading } = useQuery({
+    queryKey: ["tenantOrders", id],
+    queryFn: async () => {
+      const res = await axiosSecure.get(
+        `/system-owner/individual-tenant/${id}/orders`,
+      );
+      return res.data;
+    },
+  });
+
+  const tenant = tenantResponse?.data;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-white">
+        Loading...
+      </div>
+    );
+  }
+
+  if (isError || !tenant) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-red-500">
+        <h2 className="text-2xl font-bold mb-2">Tenant not found</h2>
+        <p>
+          {error?.response?.data?.message ||
+            error?.message ||
+            "Failed to fetch tenant"}
+        </p>
+      </div>
+    );
+  }
+
+  const billingData = billingResponse?.data || tenant.billing_history || [];
+  const agentsData = agentsResponse?.data || tenant.agents || [];
+  const callsData =
+    callsResponse?.data || tenant.calls || tenant.callSummaries || [];
+  const ordersData = ordersResponse?.data || tenant.orders || [];
+
+  const billingColumns = [
+    {
+      key: "date",
+      Title: "Date",
+      width: "20%",
+      sortable: true,
+      render: (row) => (
+        <div className="text-left text-gray-200">
+          {row.date ? new Date(row.date).toLocaleDateString("en-GB") : "N/A"}
+        </div>
+      ),
+    },
+    {
+      key: "plan",
+      Title: "Plan",
+      width: "20%",
+      sortable: true,
+      render: (row) => (
+        <div className="text-left text-gray-200">{row.plan}</div>
+      ),
+    },
+    {
+      key: "invoice",
+      Title: "Invoice",
+      width: "20%",
+      sortable: true,
+      render: (row) => (
+        <div 
+          className="text-left text-gray-200 truncate pr-4" 
+          title={row.invoice_no || row.invoice || "N/A"}
+        >
+          {row.invoice_no || row.invoice || "N/A"}
+        </div>
+      ),
+    },
+    {
+      key: "amount",
+      Title: "Amount",
+      width: "20%",
+      sortable: true,
+      render: (row) => (
+        <div className="text-left text-gray-200">£{row.amount}</div>
+      ),
+    },
+    {
+      key: "status",
+      Title: "Status",
+      width: "20%",
+      sortable: true,
+      render: (row) => (
+        <div className="text-left">
+          <span className="w-[85px] inline-block text-center px-2 py-1 text-[11px] font-medium text-white rounded-[4px] bg-[#4285F4] capitalize">
+            {row.status}
+          </span>
+        </div>
+      ),
+    },
+  ];
+
+  const agentColumns = [
+    {
+      key: "name",
+      Title: "Agent Name",
+      width: "25%",
+      sortable: true,
+      render: (row) => (
+        <div className="text-left text-gray-200">{row.name || "Unknown"}</div>
+      ),
+    },
+    {
+      key: "vapi_id",
+      Title: "Vapi Assistant ID",
+      width: "35%",
+      sortable: true,
+      render: (row) => (
+        <div className="text-left text-gray-400">
+          {row.vapi_agent_id || row.vapi_assistant_id || row.id || "N/A"}
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      Title: "Status",
+      width: "20%",
+      sortable: true,
+      render: (row) => (
+        <div className="text-left">
+          <span className="w-[85px] inline-block text-center px-2 py-1 text-[11px] font-medium text-white rounded-[4px] bg-[#4285F4] capitalize">
+            {row.status || "Active"}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "created",
+      Title: "Created Date",
+      width: "15%",
+      sortable: true,
+      render: (row) => (
+        <div className="text-left text-gray-200">
+          {row.created_date && row.created_date !== "N/A"
+            ? (isNaN(new Date(row.created_date).getTime()) ? row.created_date : new Date(row.created_date).toLocaleDateString("en-GB"))
+            : row.created_at
+              ? new Date(row.created_at).toLocaleDateString("en-GB")
+              : "N/A"}
+        </div>
+      ),
+    },
+    {
+      key: "action",
+      Title: "Action",
+      width: "10%",
+      sortable: false,
+      render: (row) => (
+        <div className="flex justify-start">
+          <button
+            onClick={() => handleActionSelect("Delete Agent", row)}
+            className="text-red-500/70 hover:text-red-500 transition-colors p-2 hover:bg-red-500/10 rounded-lg"
+            title="Delete Agent"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const callColumns = [
+    {
+      key: "callerId",
+      Title: "Caller ID",
+      width: "20%",
+      render: (row) => (
+        <div className="text-left text-gray-200">
+          {row.callerId || row.caller_id || "N/A"}
+        </div>
+      ),
+    },
+    {
+      key: "duration",
+      Title: "Call Duration",
+      width: "20%",
+      render: (row) => (
+        <div className="text-left text-gray-200">{row.duration || "N/A"}</div>
+      ),
+    },
+    {
+      key: "time",
+      Title: "Time",
+      width: "20%",
+      render: (row) => (
+        <div className="text-left text-gray-200">{row.time || "N/A"}</div>
+      ),
+    },
+    {
+      key: "date",
+      Title: "Date",
+      width: "20%",
+      render: (row) => (
+        <div className="text-left text-gray-200">
+          {row.date && row.date !== "N/A"
+            ? (isNaN(new Date(row.date).getTime()) ? row.date : new Date(row.date).toLocaleDateString("en-GB"))
+            : row.created_at
+              ? new Date(row.created_at).toLocaleDateString("en-GB")
+              : "N/A"}
+        </div>
+      ),
+    },
+    {
+      key: "action",
+      Title: "Summary",
+      width: "20%",
+      sortable: false,
+      render: (row) => (
+        <div className="relative w-[145px] sm:w-[160px]">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
+            <FileText className="w-4 h-4 text-white" />
+          </div>
+          <Dropdown
+            placeholder="Summary"
+            options={["Call Summary", "Call Transcript"]}
+            onSelect={(val) => handleActionSelect(val, row)}
+            inputClass="!bg-[#1A2255] !placeholder-white !border-none !text-white !rounded-[8px] !py-2.5 !pl-11 !pr-10 !font-medium !text-[13px] !shadow-none !cursor-pointer hover:!bg-[#232D70] transition-colors"
+            optionClass="!bg-[#1A2255] !text-white !border border-[#2A3470] !rounded-[8px] !shadow-xl !mt-1.5"
+            icon="!text-white !right-3"
+          />
+        </div>
+      ),
+    },
+  ];
+
+  const orderColumns = [
+    {
+      key: "callId",
+      Title: "Number",
+      width: "15%",
+      render: (row) => (
+        <div className="text-left text-gray-200">
+          {row.number || row.id || "N/A"}
+        </div>
+      ),
+    },
+    {
+      key: "customerName",
+      Title: "Customer Name",
+      width: "15%",
+      render: (row) => (
+        <div className="text-left text-gray-200">
+          {row.customerName || "N/A"}
+        </div>
+      ),
+    },
+    {
+      key: "time",
+      Title: "Time",
+      width: "10%",
+      render: (row) => (
+        <div className="text-left text-gray-200">{row.time || "N/A"}</div>
+      ),
+    },
+    {
+      key: "date",
+      Title: "Date",
+      width: "10%",
+      render: (row) => (
+        <div className="text-left text-gray-200">
+          {row.date && row.date !== "N/A"
+            ? (isNaN(new Date(row.date).getTime()) ? row.date : new Date(row.date).toLocaleDateString("en-GB"))
+            : row.created_at
+              ? new Date(row.created_at).toLocaleDateString("en-GB")
+              : "N/A"}
+        </div>
+      ),
+    },
+    {
+      key: "orderType",
+      Title: "Order Type",
+      width: "10%",
+      render: (row) => (
+        <div className="text-left text-gray-200">
+          {row.orderType || "N/A"}
+        </div>
+      ),
+    },
+    {
+      key: "totalPrice",
+      Title: "Amount",
+      width: "10%",
+      render: (row) => (
+        <div className="text-left text-gray-200">
+          £{row.totalPrice || row.amount || 0}
+        </div>
+      ),
+    },
+    {
+      key: "action",
+      Title: "Action",
+      width: "8%",
+      sortable: false,
+      render: (row) => (
+        <div className="flex justify-start">
+          <button
+            onClick={() => handleViewOrder(row)}
+            className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-800 rounded-lg"
+          >
+            <Eye className="w-5 h-5" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-8">
+      <TenantOverview tenant={tenant} agents={agentsData} />
+
+      {/* Tabs Section */}
+      <div className="bg-[#191919] rounded-2xl border border-gray-800/50 overflow-visible w-full">
+        <div className="flex border-b border-gray-800/50 overflow-x-auto scrollbar-hide">
+          <button
+            onClick={() => setActiveTab("agents")}
+            className={`px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap transition-colors ${activeTab === "agents" ? "text-white border-b-2 border-[#4285F4]" : "text-gray-400 hover:text-gray-200"}`}
+          >
+            AI Agents
+          </button>
+          <button
+            onClick={() => setActiveTab("calls")}
+            className={`px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap transition-colors ${activeTab === "calls" ? "text-white border-b-2 border-[#4285F4]" : "text-gray-400 hover:text-gray-200"}`}
+          >
+            Calls
+          </button>
+          <button
+            onClick={() => setActiveTab("orders")}
+            className={`px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap transition-colors ${activeTab === "orders" ? "text-white border-b-2 border-[#4285F4]" : "text-gray-400 hover:text-gray-200"}`}
+          >
+            Orders
+          </button>
+          <button
+            onClick={() => setActiveTab("billing")}
+            className={`px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap transition-colors ${activeTab === "billing" ? "text-white border-b-2 border-[#4285F4]" : "text-gray-400 hover:text-gray-200"}`}
+          >
+            Billing History
+          </button>
+        </div>
+
+        <div className="p-4">
+          {activeTab === "agents" && (
+            <Table
+              TableHeads={agentColumns}
+              TableRows={agentsData}
+              headClass="[&>div]:justify-start border-none text-left whitespace-nowrap"
+              tableClass="border-none table-fixed min-w-[800px]"
+              wrapperClass="overflow-x-auto w-full"
+              emptyState={
+                <div className="text-center py-12 text-gray-500 flex flex-col items-center justify-center gap-3">
+                  <Icon icon="lucide:bot" className="text-4xl text-gray-600" />
+                  <p>No AI agents found.</p>
+                </div>
+              }
+            />
+          )}
+
+          {activeTab === "calls" && (
+            <Table
+              TableHeads={callColumns}
+              TableRows={callsData}
+              headClass="[&>div]:justify-start border-none text-left whitespace-nowrap"
+              tableClass="border-none table-fixed min-w-[800px]"
+              wrapperClass="overflow-x-auto w-full"
+              emptyState={
+                <div className="text-center py-12 text-gray-500 flex flex-col items-center justify-center gap-3">
+                  <Icon
+                    icon="lucide:phone"
+                    className="text-4xl text-gray-600"
+                  />
+                  <p>No call history available.</p>
+                </div>
+              }
+            />
+          )}
+
+          {activeTab === "orders" && (
+            <Table
+              TableHeads={orderColumns}
+              TableRows={ordersData}
+              headClass="[&>div]:justify-start border-none text-left whitespace-nowrap"
+              tableClass="border-none table-fixed min-w-[800px]"
+              wrapperClass="overflow-x-auto w-full"
+              emptyState={
+                <div className="text-center py-12 text-gray-500 flex flex-col items-center justify-center gap-3">
+                  <Icon
+                    icon="lucide:shopping-cart"
+                    className="text-4xl text-gray-600"
+                  />
+                  <p>No order history available.</p>
+                </div>
+              }
+            />
+          )}
+
+          {activeTab === "billing" && (
+            <Table
+              TableHeads={billingColumns}
+              TableRows={billingData}
+              headClass="[&>div]:justify-start border-none text-left whitespace-nowrap"
+              tableClass="border-none table-fixed min-w-[800px]"
+              wrapperClass="overflow-x-auto w-full"
+              emptyState={
+                <div className="text-center py-12 text-gray-500 flex flex-col items-center justify-center gap-3">
+                  <Icon
+                    icon="lucide:receipt"
+                    className="text-4xl text-gray-600"
+                  />
+                  <p>No billing history available.</p>
+                </div>
+              }
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Dynamic Modal */}
+      {modalState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 text-white">
+          <div
+            className={`bg-[#111111] border border-[#1A1A1A] rounded-[20px] w-full relative shadow-2xl flex flex-col ${modalState.type === "Call Transcript" ? "max-w-[550px]" : "max-w-[600px]"}`}
+          >
+            {/* Header */}
+            <div className="px-8 py-6 border-b border-[#1A1A1A] flex justify-between items-center">
+              <h2 className="text-[17px] font-medium text-gray-200">
+                {modalState.type}
+              </h2>
+              <button
+                onClick={() =>
+                  setModalState({ isOpen: false, type: null, data: null })
+                }
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Call Transcript Content */}
+            {modalState.type === "Call Transcript" && (
+              <div className="p-8 max-h-[500px] overflow-y-auto space-y-6 custom-scrollbar">
+                {modalState.data?.transcript?.length > 0 ? (
+                  modalState.data.transcript
+                    .split("\n")
+                    .filter((l) => l.trim())
+                    .map((line, idx) => {
+                      const isUser = line.startsWith("User: ");
+                      const content = line.replace(/^(User|AI):\s*/, "");
+                      return (
+                        <div
+                          key={idx}
+                          className={`flex items-start gap-4 ${isUser ? "flex-row-reverse" : ""}`}
+                        >
+                          <div className="w-10 h-10 rounded-full bg-[#1A2255] flex items-center justify-center shrink-0">
+                            {!isUser ? (
+                              <Bot className="w-5 h-5 text-emerald-400" />
+                            ) : (
+                              <User className="w-5 h-5 text-blue-300" />
+                            )}
+                          </div>
+                          <div
+                            className={`bg-[#1A1A1A] text-gray-200 px-5 py-3.5 rounded-2xl text-[15px] max-w-[80%] ${isUser ? "rounded-tr-sm" : "rounded-tl-sm"}`}
+                          >
+                            {content}
+                          </div>
+                        </div>
+                      );
+                    })
+                ) : (
+                  <div className="text-center text-gray-400">
+                    No transcript available.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Call Summary Content */}
+            {modalState.type === "Call Summary" && (
+              <div className="flex flex-col">
+                <div className="p-8 max-h-[500px] overflow-y-auto custom-scrollbar">
+                  <p className="text-gray-300 text-[15px] leading-[1.8] whitespace-pre-wrap">
+                    {modalState.data?.summary || "No summary available."}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Delete Agent Content */}
+            {modalState.type === "Delete Agent" && (
+              <div className="flex flex-col p-8">
+                <p className="text-gray-300 text-[15px] leading-[1.8] whitespace-pre-wrap text-center mb-6">
+                  Are you sure you want to delete the agent{" "}
+                  <span className="font-bold text-white">
+                    {modalState.data?.name}
+                  </span>
+                  ?
+                </p>
+                <div className="flex justify-center gap-4">
+                  <button
+                    onClick={() =>
+                      setModalState({ isOpen: false, type: null, data: null })
+                    }
+                    className="px-6 py-2.5 rounded-[10px] text-[14px] font-medium border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      deleteAgentMutation.mutate(
+                        modalState.data.id ||
+                          modalState.data.vapi_agent_id ||
+                          modalState.data.vapi_assistant_id,
+                      );
+                    }}
+                    disabled={deleteAgentMutation.isPending}
+                    className="flex items-center justify-center bg-red-500 hover:bg-red-600 transition-colors text-white px-6 py-2.5 rounded-[10px] text-[14px] font-medium min-w-[100px] cursor-pointer"
+                  >
+                    {deleteAgentMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      "Delete"
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Footer Actions */}
+            {modalState.type !== "Delete Agent" && (
+              <div className="border-t border-[#1A1A1A] px-8 py-5 flex justify-end mt-auto">
+                <button
+                  onClick={handleDownload}
+                  className="flex items-center gap-2 bg-[#1A2255] hover:bg-[#232D70] transition-colors text-white px-6 py-2.5 rounded-[10px] text-[14px] font-medium cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+     
+      {/* View Order Modal */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 text-white">
+          <div className="bg-[#111111] border border-[#1A1A1A] rounded-[20px] w-full max-w-[700px] overflow-hidden relative shadow-2xl">
+            {/* Header */}
+            <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-[#1A1A1A] flex justify-between items-center">
+              <h2 className="text-[17px] text-gray-200 flex items-center gap-2">
+                Order Summary
+                <span className="text-gray-400 font-normal">
+                  ({selectedOrder.customerName || "Customer"}) {selectedOrder.time ? `• ${selectedOrder.time}` : ""}
+                </span>
+              </h2>
+              <button
+                onClick={closeOrderModal}
+                className="text-gray-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <>
+              {/* Table Content */}
+              <div className="px-4 sm:px-8 py-2 max-h-[400px] overflow-y-auto overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-[#1A1A1A]">
+                      <th className="py-4 text-[14px] font-semibold text-white">
+                        Product name
+                      </th>
+                      <th className="py-4 text-[14px] font-semibold text-white text-center">
+                        Order Quantity
+                      </th>
+                      <th className="py-4 text-[14px] font-semibold text-white text-right">
+                        Price
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orderProducts.length > 0 ? (
+                      orderProducts.map((product, idx) => (
+                        <tr
+                          key={product.id || idx}
+                          className="border-b border-[#1A1A1A]"
+                        >
+                          <td className="py-5 text-[14px] text-gray-300">
+                            {product.product_name || `Item ${idx + 1}`}
+                          </td>
+                          <td className="py-5 text-[14px] text-gray-300 text-center">
+                            <span className="inline-block px-4">
+                              {product.quantity}
+                            </span>
+                          </td>
+                          <td className="py-5 text-[14px] text-gray-300 text-right">
+                            £{product.unit_prize || 0}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan="4"
+                          className="py-8 text-center text-gray-500 text-sm"
+                        >
+                          No items found for this order.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="px-4 sm:px-8 py-4 sm:py-6 flex flex-col sm:flex-row justify-between items-center gap-4 mt-2 border-t border-[#1A1A1A]">
+                <div className="text-[15px] font-medium text-white w-full sm:w-auto text-center sm:text-left">
+                  Total:{" "}
+                  <span className="text-[#2563EB]">
+                    £{selectedOrder?.totalPrice || 0}
+                  </span>
+                </div>
+                <div className="flex gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-start">
+                  <button
+                    onClick={handlePrintOrder}
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-[#1A2255] hover:bg-[#232D70] transition-colors text-white px-4 sm:px-6 py-2.5 rounded-[10px] text-[13px] font-medium cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Print
+                  </button>
+                  <button
+                    onClick={handleDownloadOrder}
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-[#1A2255] hover:bg-[#232D70] transition-colors text-white px-4 sm:px-6 py-2.5 rounded-[10px] text-[13px] font-medium cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
+                  </button>
+                </div>
+              </div>
+            </>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ViewTenant;

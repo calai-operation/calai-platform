@@ -1,0 +1,36 @@
+.calai-order-alert {
+  --alert-rgb: 37 99 235;
+  position: relative;
+  isolation: isolate;
+  border-radius: 1rem;
+}
+
+.calai-order-alert--sounding::before,
+.calai-order-alert--sounding::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: calai-order-radiate 2.4s ease-out infinite;
+}
+
+.calai-order-alert--sounding::after {
+  animation-delay: -1.2s;
+}
+
+@keyframes calai-order-radiate {
+  0% { box-shadow: 0 0 0 0 rgb(var(--alert-rgb) / 65%), 0 0 24px 4px rgb(var(--alert-rgb) / 35%); opacity: 1; }
+  100% { box-shadow: 0 0 0 22px rgb(var(--alert-rgb) / 0%), 0 0 50px 28px rgb(var(--alert-rgb) / 0%); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calai-order-alert--sounding::before {
+    animation: none;
+    box-shadow: 0 0 0 2px rgb(var(--alert-rgb) / 65%), 0 0 24px 6px rgb(var(--alert-rgb) / 35%);
+  }
+  .calai-order-alert--sounding::after { animation: none; display: none; }
+}
+
+.calai-order-alert--unconfirmed { --alert-rgb: 249 115 22; }
