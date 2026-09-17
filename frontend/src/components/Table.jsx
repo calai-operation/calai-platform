@@ -10,7 +10,7 @@ import {
 } from "@tanstack/react-table";
 import { ArrowUpDown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Search } from "lucide-react";
 
-export default function Table({ TableHeads, TableRows, headClass, tableClass, emptyState, wrapperClass = "overflow-x-auto", paginate = true }) {
+export default function Table({ TableHeads, TableRows, headClass, tableClass, emptyState, wrapperClass = "overflow-x-auto" }) {
   const [sorting, setSorting] = useState([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [columnFilters, setColumnFilters] = useState([]);
@@ -47,7 +47,7 @@ export default function Table({ TableHeads, TableRows, headClass, tableClass, em
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: paginate ? getPaginationRowModel() : undefined,
+    getPaginationRowModel: getPaginationRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     initialState: {
       pagination: {
@@ -156,7 +156,7 @@ export default function Table({ TableHeads, TableRows, headClass, tableClass, em
       </div>
 
       {/* ==== PAGINATION CONTROLS ==== */}
-      {paginate && <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-5 bg-transparent border-t border-gray-800/50">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-5 bg-transparent border-t border-gray-800/50">
         <div className="text-sm text-gray-400 text-center sm:text-left">
           Page <span className="font-semibold text-white">{table.getState().pagination.pageIndex + 1}</span> of{" "}
           <span className="font-semibold text-white">{table.getPageCount()}</span>
@@ -204,7 +204,7 @@ export default function Table({ TableHeads, TableRows, headClass, tableClass, em
                 <ChevronRight size={18} />
             </button>
         </div>
-      </div>}
+      </div>
     </div>
   );
 }

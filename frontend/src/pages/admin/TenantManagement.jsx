@@ -4,6 +4,7 @@ import { Icon } from "@iconify/react";
 import InputField from "../../components/Inputfield";
 import Dropdown from "../../components/Dropdown";
 import Password from "../../components/Password";
+import Breadcrumb from "../../components/Breadcrumb";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import useAxiosSecure from "../../hooks/useAxiosSecure";
@@ -233,7 +234,8 @@ const TenantManagement = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-end mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <Breadcrumb text="Manage all your tenants" />
         <button
           onClick={() => setIsAddModalOpen(true)}
           className="flex items-center gap-2 bg-linear-to-t from-[#00135B] via-[#02060F] to-[#00104E] text-white px-5 py-3 rounded-full text-lg"

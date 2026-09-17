@@ -1,95 +1,50 @@
 import React, { useState, useRef } from "react";
-import { Trash2, X, Loader2, UploadCloud, FileText } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import useAxiosSecure from "../../hooks/useAxiosSecure";
+import { Trash2, X, Loader2, UploadCloud, FileText, Search } from "lucide-react";
+import { useItemManagement } from "../../hooks/useItemManagement";
 import toast from "react-hot-toast";
 import Table from "../../components/Table";
 import Breadcrumb from "../../components/Breadcrumb";
-import "./RecordPages.css";
+import Dropdown from "../../components/Dropdown";
 
 const ItemManagement = () => {
-  const axiosSecure = useAxiosSecure();
-  const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingItem, setDeletingItem] = useState(null);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [uploadAgentId, setUploadAgentId] = useState("");
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All Categories");
 
-  const { data: agentsResponse } = useQuery({
-    queryKey: ["agents"],
-    queryFn: async () => {
-      const res = await axiosSecure.get("/business-owner/agent");
-      return res.data;
-    },
-  });
-  const agents = agentsResponse?.data || [];
+  const {
+    items,
+    isLoading,
+    uploadAgentId,
+    setUploadAgentId,
+    submitUpload,
+  } = useItemManagement();
 
-  React.useEffect(() => {
-    if (agents.length > 0) {
-      const agent = agents[0];
-      const vapiId = agent.agentId || agent.vapiAgentId || agent.vapi_agent_id || agent.id;
-      if (!uploadAgentId) setUploadAgentId(vapiId);
-    }
-  }, [agents, uploadAgentId]);
+  // Extract unique categories for the dropdown
+  const categories = ["All Categories", ...new Set(items.map((item) => item.category).filter(Boolean))];
 
-  const { data: itemsResponse, isLoading } = useQuery({
-    queryKey: ["itemManagement", "all"],
-    queryFn: async () => {
-      const url = "/business-owner/item-management";
-      const res = await axiosSecure.get(url);
-      return res.data;
-    },
-  });
-
-  const items = itemsResponse?.data || [];
-  const categories = [...new Set(items.map(item => item.category).filter(Boolean))];
-  const filteredItems = items.filter(item => (category === 'all' || item.category === category) && [item.name, item.category, item.unit].some(value => String(value ?? '').toLowerCase().includes(search.trim().toLowerCase())));
-  const currency = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
-
-  const uploadMenuMutation = useMutation({
-    mutationFn: async ({ agentId, formData }) => {
-      const res = await axiosSecure.patch(
-        `/business-owner/item-management/update-menu?vapiAgentId=${agentId}`,
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        },
-      );
-      return res.data;
-    },
-    onSuccess: () => {
-      toast.success("Menu updated successfully");
-      setIsUploadModalOpen(false);
-      setUploadAgentId("");
-      setSelectedFiles([]);
-      queryClient.invalidateQueries({ queryKey: ["itemManagement"] });
-    },
-    onError: (err) => {
-      toast.error(err.response?.data?.message || "Failed to update menu");
-    },
+  // Filter items based on search query and category
+  const filteredItems = items.filter((item) => {
+    const matchesSearch = 
+      item.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      item.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.unit?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+    const matchesCategory = selectedCategory === "All Categories" || item.category === selectedCategory;
+    
+    return matchesSearch && matchesCategory;
   });
 
   const handleUploadSubmit = () => {
-    if (!uploadAgentId) {
-      toast.error("Please select an agent");
-      return;
-    }
-    if (selectedFiles.length === 0) {
-      toast.error("Please select at least one file");
-      return;
-    }
-
-    const formData = new FormData();
-    selectedFiles.forEach((file) => {
-      formData.append("menu_file", file);
+    submitUpload(uploadAgentId, selectedFiles, () => {
+      setIsUploadModalOpen(false);
+      setUploadAgentId("");
+      setSelectedFiles([]);
     });
-
-    uploadMenuMutation.mutate({ agentId: uploadAgentId, formData });
   };
 
   const handleModalFileSelect = (e) => {
@@ -99,7 +54,7 @@ const ItemManagement = () => {
 
   const removeFile = (indexToRemove) => {
     setSelectedFiles((prev) =>
-      prev.filter((_, index) => index !== indexToRemove),
+      prev.filter((_, index) => index !== indexToRemove)
     );
   };
 
@@ -119,7 +74,7 @@ const ItemManagement = () => {
     { key: "category", Title: "Category", width: "20%" },
     { key: "name", Title: "Name", width: "20%" },
     { key: "unit", Title: "Unit", width: "20%" },
-    { key: "price", Title: "Price", width: "10%", render: row => row.price !== null && row.price !== undefined && row.price !== "" && Number.isFinite(Number(row.price)) ? currency.format(Number(row.price)) : "—" },
+    { key: "price", Title: "Price", width: "10%" },
     {
       key: "action",
       Title: "Action",
@@ -128,7 +83,6 @@ const ItemManagement = () => {
       render: (row) => (
         <div className="flex justify-center">
           <button
-            aria-label={`Delete ${row.name}`}
             onClick={() => handleDeleteClick(row)}
             className="text-red-500/70 hover:text-red-500 transition-colors p-2 hover:bg-red-500/10 rounded-lg"
           >
@@ -142,7 +96,7 @@ const ItemManagement = () => {
   if (isLoading) {
     return (
       <div>
-        <Breadcrumb text="Browse your complete menu, with all items and prices in one place." />
+        <Breadcrumb text="You can see your item management" />
         <div className="flex items-center justify-center min-h-[400px]">
           <Loader2 className="animate-spin text-[#2563EB] w-10 h-10" />
         </div>
@@ -151,29 +105,51 @@ const ItemManagement = () => {
   }
 
   return (
-    <div className="calai-records">
-      <Breadcrumb text="Browse your complete menu, with all items and prices in one place." />
+    <div>
+      <Breadcrumb text="You can see your item management" />
 
-      <p className="record-help">Need to add an item? <a href="mailto:hello@calai.info">message us now</a></p>
-      <div className="record-toolbar">
-        <label className="record-search">Search items<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Item name, category or unit…" /></label>
-        <label>Category<select value={category} onChange={event => setCategory(event.target.value)}><option value="all">All categories</option>{categories.map(value => <option key={value}>{value}</option>)}</select></label>
+      <div className="flex flex-col sm:flex-row gap-10 mb-6 relative z-10">
+        {/* Search Bar */}
+        <div className="flex-1">
+          {/* <label className="block text-gray-400 text-sm mb-2 font-medium">Search items</label> */}
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+            <input 
+              type="text" 
+              className="block w-full pl-11 pr-4 py-[13px] border border-[#2A2A2A] rounded-xl bg-transparent text-gray-200 placeholder-[#707070] focus:outline-none focus:border-[#2563EB] transition-colors"
+              placeholder="Search by Item Name"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Category Dropdown */}
+        <div className="w-full sm:w-[280px]">
+          {/* <label className="block text-gray-400 text-sm mb-2 font-medium">Category</label> */}
+          <Dropdown 
+            options={categories}
+            value={selectedCategory}
+            onSelect={setSelectedCategory}
+            placeholder="Select Category"
+            inputClass="!bg-[#111111] !border-[#2A2A2A] py-[13px] rounded-xl text-gray-200 focus:!border-[#2563EB] "
+            icon="!text-gray-400"
+            optionClass="!bg-[#111111] !border-[#2A2A2A] !text-gray-200"
+          />
+        </div>
       </div>
-      <div className="record-caption"><span>{filteredItems.length} of {items.length} items · all on one page</span><span>Sort by any column heading</span></div>
 
-      <div className="record-panel">
-        {items.length > 0 ? (
+      <div className="bg-[#191919] border border-[#1A1A1A] rounded-2xl overflow-visible shadow-sm relative z-0">
+        {filteredItems.length > 0 ? (
           <Table
             TableHeads={columns}
             TableRows={filteredItems}
-            paginate={false}
-            emptyState={<div className="record-empty">No items match your search or category.</div>}
             headClass=" border-b border-[#1A1A1A] text-gray-200 whitespace-nowrap last:[&>div]:justify-center"
             tableClass="border-none"
           />
         ) : (
           <div className="p-8 text-center text-gray-400 text-sm">
-            No items found in your inventory.
+            {searchQuery || selectedCategory !== "All Categories" ? "No items match your search criteria." : "No items found in your inventory."}
           </div>
         )}
       </div>

@@ -1,28 +1,28 @@
 import { useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
-import Cookies from "js-cookie";
-import "../pages/admin/admin-theme.css";
-import "../pages/owner/owner-theme.css";
+import { Outlet } from "react-router-dom";
 import Sidebar from "../components/layout/Sidebar";
 import Header from "../components/layout/Header";
 import LiveOrderPopup from "../components/LiveOrderPopup";
 
 export default function DashboardLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const location = useLocation();
-  const isAdmin = Cookies.get("role") === "SYSTEM_OWNER" && location.pathname.startsWith("/admin");
-  const isOwner = Cookies.get("role") === "BUSINESS_OWNER" && location.pathname.startsWith("/owner");
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
 
   return (
-    <div className={`flex h-screen w-full bg-[#0a1024] text-gray-100 ${isAdmin ? "calai-admin-theme" : isOwner ? "calai-owner-theme" : ""}`}>
+    <div className="flex h-screen w-full bg-[#0a1024] text-gray-100">
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        isDesktopCollapsed={isDesktopCollapsed}
       />
 
       <div className="flex flex-1 flex-col overflow-hidden">
 
-        <Header onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+        <Header 
+          onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+          isDesktopCollapsed={isDesktopCollapsed}
+          onDesktopMenuClick={() => setIsDesktopCollapsed(!isDesktopCollapsed)}
+        />
 
 
         <main className="flex-1 overflow-y-auto hide-scrollbar bg-[#141416] text-white relative p-6">

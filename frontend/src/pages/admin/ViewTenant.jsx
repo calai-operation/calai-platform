@@ -19,7 +19,7 @@ import InputField from "../../components/Inputfield";
 import Dropdown from "../../components/Dropdown";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import useAxiosSecure from "../../hooks/useAxiosSecure";
-import TenantOverview from "./TenantOverview";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
 const ViewTenant = () => {
   const { id } = useParams();
@@ -238,6 +238,17 @@ const ViewTenant = () => {
   const callsData =
     callsResponse?.data || tenant.calls || tenant.callSummaries || [];
   const ordersData = ordersResponse?.data || tenant.orders || [];
+
+  const usedMinutes = tenant.usage?.used !== undefined ? tenant.usage.used : 0;
+  const remainingMinutes =
+    tenant.usage?.remaining !== undefined ? tenant.usage.remaining : 0;
+
+  // If total is 0 (even with explicit 0 from API), the pie chart won't render.
+  // We can force it to render an empty state pie if we want, but since we used fallbacks above, it should show.
+  const pieData = [
+    { name: "Used", value: usedMinutes, color: "#4285F4" },
+    { name: "Remaining", value: remainingMinutes, color: "#374151" },
+  ];
 
   const billingColumns = [
     {
@@ -511,9 +522,122 @@ const ViewTenant = () => {
     },
   ];
 
+  const statusLower = tenant.status?.toLowerCase();
+  let statusBgClass = "bg-[#7A8293]";
+  if (statusLower === "active") statusBgClass = "bg-[#4285F4]";
+  else if (statusLower === "suspended") statusBgClass = "bg-[#EA4335]";
+
+  const joinedDate = tenant.joined_date
+    ? new Date(tenant.joined_date).toLocaleDateString("en-GB")
+    : "N/A";
+
   return (
     <div className="space-y-8">
-      <TenantOverview tenant={tenant} agents={agentsData} />
+      {/* Top Cards Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Tenant Profile Card */}
+        <div className="bg-[#191919] rounded-2xl p-6 relative shadow-sm border border-gray-800/50">
+          <div className="absolute top-6 right-6">
+            <span
+              className={`px-4 py-1 text-xs font-bold rounded-full uppercase tracking-wider ${statusLower === "active" ? "bg-[#4285F4]/20 text-[#4285F4]" : "bg-gray-800 text-gray-400"}`}
+            >
+              {tenant.status || "Unknown"}
+            </span>
+          </div>
+
+          {tenant.image || tenant.profile_picture ? (
+            <img
+              src={tenant.image || tenant.profile_picture}
+              alt={tenant.name}
+              className="w-16 h-16 rounded-2xl object-cover mb-4 shadow-md border border-gray-800"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-2xl bg-[#4285F4] flex items-center justify-center text-white text-2xl font-bold mb-4 shadow-md">
+              {tenant.name ? tenant.name.charAt(0).toUpperCase() : "T"}
+            </div>
+          )}
+
+          <h2 className="text-white text-2xl font-bold mb-1">
+            {tenant.name || "Unknown Name"}
+          </h2>
+          <p className="text-gray-400 text-sm mb-6">Tenant Profile</p>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 text-gray-300 text-sm">
+              <Icon icon="lucide:mail" className="text-lg text-[#4285F4]" />
+              <span>{tenant.email || "N/A"}</span>
+            </div>
+            <div className="flex items-center gap-3 text-gray-300 text-sm">
+              <Icon icon="lucide:phone" className="text-lg text-[#4285F4]" />
+              <span>{tenant.phone || "N/A"}</span>
+            </div>
+            <div className="flex items-center gap-3 text-gray-300 text-sm">
+              <Icon icon="lucide:calendar" className="text-lg text-[#4285F4]" />
+              <span>Joined {joinedDate}</span>
+            </div>
+            <div className="flex items-center gap-3 text-gray-300 text-sm">
+              <Icon icon="lucide:bot" className="text-lg text-[#4285F4]" />
+              <span>{agentsData.length} Active Agents</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Usage Overview Card */}
+        <div className="bg-[#191919] rounded-2xl p-6 shadow-sm border border-gray-800/50 flex flex-col">
+          <div className="flex justify-between items-start mb-2">
+            <div>
+              <h2 className="text-white text-lg font-bold">Usage Overview</h2>
+              <p className="text-gray-400 text-sm">
+                Track monthly minute usage
+              </p>
+            </div>
+          </div>
+
+          <div className="flex-1 bg-[#111111] rounded-xl border border-gray-800/50 mt-4 relative flex items-center justify-center py-10 min-h-[280px]">
+            <div className="flex w-full items-center justify-center gap-2 sm:gap-6 px-4">
+              <div className="text-xs sm:text-sm font-medium text-gray-300 text-right flex-1">
+                Used: {usedMinutes} min
+              </div>
+
+              <div className="w-[140px] sm:w-[180px] aspect-square shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius="0%"
+                      outerRadius="100%"
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="text-xs sm:text-sm font-medium text-gray-300 text-left flex-1">
+                Remaining: {remainingMinutes} min
+              </div>
+            </div>
+
+            <div className="absolute bottom-4 left-0 w-full flex justify-center gap-6">
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <div className="w-3 h-3 rounded-sm bg-[#4285F4]"></div>
+                Used
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <div className="w-3 h-3 rounded-sm bg-[#374151]"></div>
+                Remaining
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
 
       {/* Tabs Section */}
       <div className="bg-[#191919] rounded-2xl border border-gray-800/50 overflow-visible w-full">

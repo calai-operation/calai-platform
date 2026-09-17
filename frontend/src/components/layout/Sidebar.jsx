@@ -6,7 +6,7 @@ import { FiX } from "react-icons/fi";
 import toast, { Toaster } from "react-hot-toast";
 import Cookies from "js-cookie";
 
-export default function Sidebar({ isOpen, onClose }) {
+export default function Sidebar({ isOpen, onClose, isDesktopCollapsed }) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -56,11 +56,12 @@ export default function Sidebar({ isOpen, onClose }) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-[100] w-64 bg-[#0E0E10] text-[#ffffff]
+        className={`fixed inset-y-0 left-0 z-[100] bg-[#0E0E10] text-[#ffffff]
         border-r border-[#262626]
-        transform transition-transform duration-300 
+        transform transition-all duration-300 
         ${isOpen ? "translate-x-0" : "-translate-x-full"}
-        2xl:static 2xl:translate-x-0`}
+        2xl:static 2xl:translate-x-0
+        ${isDesktopCollapsed ? "2xl:w-[88px] w-64" : "w-64"}`}
       >
         {/* Mobile Close */}
         <button
@@ -72,32 +73,30 @@ export default function Sidebar({ isOpen, onClose }) {
 
         <div className="flex h-full flex-col">
           {/* Header */}
-          <div className="px-6 py-6 flex  items-center gap-4">
+          <div className={`py-6 flex items-center gap-4 transition-all duration-300 ${isDesktopCollapsed ? "px-6 2xl:px-0 2xl:justify-center" : "px-6"}`}>
             <Link to="/">
-              {role === "SYSTEM_OWNER" ? (
-                <span className="block relative overflow-hidden w-[190px] h-[76px]" aria-label="Calai">
-                  <img src="/calai-admin-logo.png" alt="Calai" className="absolute max-w-none w-[300px] h-[200px] left-[-56px] top-[-64px]" />
-                </span>
-              ) : <Image src="/logo.png" alt="Company Logo" />}
+              <Image src="/logo.png" alt="Company Logo" className={`transition-all duration-300 ${isDesktopCollapsed ? "2xl:hidden" : ""}`} />
+              <Image src="/title.png" alt="Company Logo" className={`w-8 h-10 transition-all duration-300 hidden ${isDesktopCollapsed ? "2xl:block" : ""}`} />
             </Link>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
+          <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto overflow-x-hidden">
             {navLinks.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
                 onClick={() => window.innerWidth < 1536 && onClose()}
-                className={`flex  items-center gap-4 px-2 py-3.5 rounded-xl transition-all border border-l-[4px]
+                className={`flex items-center gap-4 py-3.5 rounded-xl transition-all border border-l-[4px]
+                  ${isDesktopCollapsed ? "px-2 2xl:px-0 2xl:justify-center" : "px-2"}
                   ${
                     isActivePath(item.path)
                       ? "border-[#2563EB]/30 border-l-[#0F42FF] bg-[#18181A] text-white"
                       : "border-transparent border-l-transparent text-[#D1D5DB] hover:bg-[#18181A] hover:text-white"
                   }`}
               >
-                <Icon icon={item.icon} width="24" className="text-current" />
-                <span className="text-sm ">{item.name}</span>
+                <Icon icon={item.icon} width="24" className="text-current shrink-0" />
+                <span className={`text-sm whitespace-nowrap transition-all duration-300 ${isDesktopCollapsed ? "2xl:hidden" : ""}`}>{item.name}</span>
               </NavLink>
             ))}
           </nav>
