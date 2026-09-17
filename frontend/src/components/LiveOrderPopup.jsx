@@ -1,40 +1,32 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import Cookies from "js-cookie";
-import { BellRing, MapPin, Phone, User, ShoppingBag } from "lucide-react";
+import { X, BellRing, MapPin, Phone, User, ShoppingBag } from "lucide-react";
 import useAuth from "../hooks/useAuth";
 import toast from "react-hot-toast";
-import "./LiveOrderPopup.css";
 
 const LiveOrderPopup = () => {
   const [incomingOrder, setIncomingOrder] = useState(null);
   const { user } = useAuth();
-  const [soundingOrder, setSoundingOrder] = useState(null);
+  const audioRef = useRef(null);
 
-  // Follow actual playback so a blocked or paused alert never shows as sounding.
+  // Play a notification sound continuously until acknowledged
   useEffect(() => {
-    if (!incomingOrder) return;
-    let audio;
-    let active = true;
-    const playing = () => { if (active) setSoundingOrder(incomingOrder); };
-    const stopped = () => { if (active) setSoundingOrder(null); };
-    const stopEvents = ['pause', 'ended', 'error', 'waiting', 'emptied'];
-    try {
-      audio = new Audio(incomingOrder.confirmationStatus === 'unconfirmed' ? '/unconfirmed-notification.wav' : '/notification.wav');
-      audio.loop = true;
-      audio.addEventListener('playing', playing);
-      stopEvents.forEach(event => audio.addEventListener(event, stopped));
-      audio.play().catch(() => stopped());
-    } catch {
-      toast.error("The order alert sound could not be played.");
+    if (incomingOrder) {
+      try {
+        const audio = new Audio('/notification.wav');
+        audio.loop = true; // Loop the sound
+        audioRef.current = audio;
+        audio.play().catch(e => console.log("Audio play blocked by browser", e));
+      } catch (e) {
+        toast.error("Audio error:", e);
+      }
     }
+    
     return () => {
-      active = false;
-      if (audio) {
-        audio.removeEventListener('playing', playing);
-        stopEvents.forEach(event => audio.removeEventListener(event, stopped));
-        audio.pause();
-        audio.currentTime = 0;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
       }
     };
   }, [incomingOrder]);
@@ -102,29 +94,27 @@ const LiveOrderPopup = () => {
   }, [user]);
 
   if (!incomingOrder) return null;
-  const unconfirmed = incomingOrder.confirmationStatus === "unconfirmed";
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-      <div className={`calai-order-alert w-full max-w-[500px] ${unconfirmed ? "calai-order-alert--unconfirmed" : ""} ${soundingOrder === incomingOrder ? 'calai-order-alert--sounding' : ''}`}>
-      <div className="bg-[#0E0E10] border border-[#272727] shadow-[0_0_40px_rgba(37,99,235,0.15)] rounded-2xl w-full max-w-[500px] max-h-[calc(100dvh-32px)] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+      <div className="bg-[#0E0E10] border border-[#272727] shadow-[0_0_40px_rgba(37,99,235,0.15)] rounded-2xl w-full max-w-[500px] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
         
         {/* Header */}
-        <div className={`bg-gradient-to-r ${unconfirmed ? "from-orange-600 to-amber-500" : "from-blue-600 to-indigo-600"} p-5 relative}`}>
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-5 relative">
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-bl-full -z-10"></div>
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded-full">
+            <div className="p-2 bg-white/20 rounded-full animate-pulse">
               <BellRing className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">{unconfirmed ? "Unconfirmed Order" : "New Order Received!"}</h2>
+              <h2 className="text-xl font-bold text-white">New Order Received!</h2>
               {/* <p className="text-blue-100 text-sm">Order #{incomingOrder.id || 'N/A'}</p> */}
             </div>
           </div>
         </div>
 
         {/* Order Details Body */}
-        <div className="p-6 flex-1 min-h-0 max-h-[60vh] overflow-y-auto hide-scrollbar space-y-6">
+        <div className="p-6 flex-1 max-h-[60vh] overflow-y-auto hide-scrollbar space-y-6">
           
           {/* Customer Info */}
           <div className="bg-[#151515] p-4 rounded-xl border border-white/5 space-y-3">
@@ -161,9 +151,8 @@ const LiveOrderPopup = () => {
                     <div>
                       <p className="text-gray-200 font-medium">{item.product_name || item.name || 'Unknown Item'}</p>
                       <p className="text-gray-500 text-sm">Qty: {item.quantity || 1}</p>
-                      {unconfirmed && item.notes && <p className="text-gray-400 text-sm">{item.notes}</p>}
                     </div>
-                    <p className="text-white font-medium">{unconfirmed && item.unit_prize === null ? "Price unknown" : `£${Number(item.unit_prize || item.unit_price || item.price || 0).toFixed(2)}`}</p>
+                    <p className="text-white font-medium">£{Number(item.unit_prize || item.unit_price || item.price || 0).toFixed(2)}</p>
                   </div>
                 ))
               ) : (
@@ -175,14 +164,13 @@ const LiveOrderPopup = () => {
           {/* Total */}
           <div className="flex justify-between items-center pt-4 border-t border-white/10">
             <span className="text-gray-400 font-medium">Total Amount:</span>
-            <span className="text-2xl font-bold text-white">{unconfirmed && incomingOrder.totalPrice === null ? "Not confirmed" : `£${Number(incomingOrder.totalPrice || 0).toFixed(2)}`}</span>
+            <span className="text-2xl font-bold text-white">£{Number(incomingOrder.totalPrice || 0).toFixed(2)}</span>
           </div>
 
         </div>
 
-        {unconfirmed && <div className="max-h-[25vh] overflow-y-auto shrink-0 px-6 py-4 border-t border-orange-500/30 bg-orange-500/10 text-orange-100"><p className="font-semibold text-sm">Reason not confirmed</p><p className="text-sm mt-1 break-words">{incomingOrder.unconfirmedReason || 'The call ended before the order was fully confirmed.'}</p></div>}
         {/* Footer Actions */}
-        <div className="shrink-0 p-5 border-t border-[#272727] bg-[#111111]">
+        <div className="p-5 border-t border-[#272727] bg-[#111111]">
           <button
             onClick={() => setIncomingOrder(null)}
             className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.2)] hover:shadow-[0_0_30px_rgba(37,99,235,0.4)]"
@@ -191,7 +179,6 @@ const LiveOrderPopup = () => {
           </button>
         </div>
         
-      </div>
       </div>
     </div>
   );

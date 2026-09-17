@@ -1,34 +1,21 @@
-import { useState } from "react";
-import { FileText, X, Bot, User, Download, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import useAxiosSecure from "../../hooks/useAxiosSecure";
-import toast from "react-hot-toast";
+import React, { useState } from "react";
+import { FileText, X, Bot, User, Download, Loader2, Search } from "lucide-react";
 import Table from "../../components/Table";
 import Breadcrumb from "../../components/Breadcrumb";
-import "./RecordPages.css";
+import Dropdown from "../../components/Dropdown";
+import { useCallSummary } from "../../hooks/useCallSummary";
 
 const CallSummary = () => {
-  const axiosSecure = useAxiosSecure();
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+  const { calls, isLoading, downloadPdf } = useCallSummary();
   const [modalState, setModalState] = useState({
     isOpen: false,
     type: null,
     data: null,
   });
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: callsResponse, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ["callSummaries"],
-    queryFn: async () => {
-      const res = await axiosSecure.get("/business-owner/call-summary");
-      return res.data;
-    },
-  });
-
-  const calls = callsResponse?.data || [];
-  const filteredCalls = calls.filter(call =>
-    (filter === 'all' || (filter === 'summary' ? Boolean(call.summary) : Boolean(call.transcript?.length))) &&
-    [call.callerId, call.duration, call.time, call.date].some(value => String(value ?? '').toLowerCase().includes(search.trim().toLowerCase()))
+  const filteredCalls = calls.filter((call) => 
+    call.callerId?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleActionSelect = (option, row) => {
@@ -36,33 +23,9 @@ const CallSummary = () => {
     setModalState({ isOpen: true, type: option, data: row });
   };
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     if (!modalState.data?.id) return;
-    try {
-      const toastId = toast.loading("Downloading PDF...");
-      const res = await axiosSecure.get(
-        `/business-owner/call-summary/download/${modalState.data.id}`,
-        {
-          responseType: "blob",
-        },
-      );
-      const url = window.URL.createObjectURL(
-        new Blob([res.data], { type: "application/pdf" }),
-      );
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute(
-        "download",
-        `Call_${modalState.type.replace(/\s+/g, "_")}_${modalState.data.id}.pdf`,
-      );
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode.removeChild(link);
-      toast.success("Download complete", { id: toastId });
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to download PDF");
-    }
+    downloadPdf(modalState.data.id, modalState.type);
   };
 
   const columns = [
@@ -76,9 +39,19 @@ const CallSummary = () => {
       width: "20%",
       sortable: false,
       render: (row) => (
-        <div className="record-actions">
-          <button className="record-action" onClick={() => handleActionSelect('Call Summary', row)}><FileText size={15} />Summary</button>
-          <button className="record-action" onClick={() => handleActionSelect('Call Transcript', row)}>Transcript</button>
+        <div className="relative w-[180px]">
+          {/* Custom icon positioning over the dropdown */}
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
+            <FileText className="w-4 h-4 text-white" />
+          </div>
+          <Dropdown
+            placeholder="Summary"
+            options={["Call Summary", "Call Transcript"]}
+            onSelect={(val) => handleActionSelect(val, row)}
+            inputClass="!bg-[#1A2255] !placeholder-white !border-none !text-white !rounded-[8px] !py-2.5 !pl-11 !pr-10 !font-medium !text-[13px] !shadow-none !cursor-pointer hover:!bg-[#232D70] transition-colors"
+            optionClass="!bg-[#1A2255] !text-white !border border-[#2A3470] !rounded-[8px] !shadow-xl !mt-1.5"
+            icon="!text-white !right-3"
+          />
         </div>
       ),
     },
@@ -87,7 +60,7 @@ const CallSummary = () => {
   if (isLoading) {
     return (
       <div>
-        <Breadcrumb text="Find conversations, read summaries and transcripts, and download your call records." />
+        <Breadcrumb text="You can see your AI call summary" />
         <div className="flex items-center justify-center min-h-[400px]">
           <Loader2 className="animate-spin text-[#2563EB] w-10 h-10" />
         </div>
@@ -96,29 +69,38 @@ const CallSummary = () => {
   }
 
   return (
-    <div className="calai-records">
-      <Breadcrumb text="Find conversations, read summaries and transcripts, and download your call records." />
-
-      <div className="record-toolbar">
-        <label className="record-search">Search calls<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Caller, date, time or duration…" /></label>
-        <label>Available content<select value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All calls</option><option value="summary">With summary</option><option value="transcript">With transcript</option></select></label>
-        <button className="record-action" onClick={() => refetch()} disabled={isFetching}>{isFetching ? 'Refreshing…' : 'Refresh'}</button>
+    <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <Breadcrumb text="You can see your AI call summary" />
+        
+        {/* Search Bar */}
+        <div className="w-full sm:w-auto">
+          <div className="relative w-full sm:w-[300px]">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              className="block w-full pl-10 pr-3 py-2 border border-[#2A2A2A] rounded-xl leading-5 bg-[#1A1A1A] text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#2563EB] focus:border-[#2563EB] sm:text-sm transition-colors"
+              placeholder="Search by Caller ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
       </div>
-      <div className="record-caption"><span>{isError ? 'Calls unavailable' : `${filteredCalls.length} of ${calls.length} calls`}</span><span>Sort by any column heading</span></div>
-      {isError && <p role="alert" className="record-error">Calls could not be loaded. Use Refresh to try again.</p>}
-      <div className="record-panel">
-        {calls.length > 0 ? (
+
+      <div className="bg-[#191919] border border-[#1A1A1A] rounded-2xl shadow-sm overflow-hidden">
+        {filteredCalls.length > 0 ? (
           <Table
             TableHeads={columns}
             TableRows={filteredCalls}
-            emptyState={<div className="record-empty">No calls match your search or filter.</div>}
             headClass=" border-b border-[#1A1A1A] text-gray-200 whitespace-nowrap"
             tableClass="border-none"
-            wrapperClass="overflow-x-auto"
           />
         ) : (
           <div className="p-8 text-center text-gray-400 text-sm">
-            No call summaries found.
+            {searchQuery ? "No matching call summaries found." : "No call summaries found."}
           </div>
         )}
       </div>
@@ -127,8 +109,7 @@ const CallSummary = () => {
       {modalState.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 text-white">
           <div
-            role="dialog" aria-modal="true" aria-label={modalState.type}
-            className={`record-dialog bg-[#111111] border border-[#1A1A1A] rounded-[20px] w-full relative shadow-2xl flex flex-col ${modalState.type === "Call Transcript" ? "max-w-[550px]" : "max-w-[600px]"}`}
+            className={`bg-[#111111] border border-[#1A1A1A] rounded-[20px] w-full relative shadow-2xl flex flex-col ${modalState.type === "Call Transcript" ? "max-w-[550px]" : "max-w-[600px]"}`}
           >
             {/* Header */}
             <div className="px-8 py-6 border-b border-[#1A1A1A] flex justify-between items-center">
@@ -136,7 +117,6 @@ const CallSummary = () => {
                 {modalState.type}
               </h2>
               <button
-                aria-label="Close call details"
                 onClick={() =>
                   setModalState({ isOpen: false, type: null, data: null })
                 }

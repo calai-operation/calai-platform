@@ -1,15 +1,20 @@
 import React, { useState } from "react";
 import { Trash2, Edit2, X, Loader2, Plus, Printer, Download } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import Table from "../../components/Table";
 import Breadcrumb from "../../components/Breadcrumb";
 import InputField from "../../components/Inputfield";
-import useAxiosSecure from "@/hooks/useAxiosSecure";
+import { usePrinterManagement } from "../../hooks/usePrinterManagement";
 
 const PrinterManagement = () => {
-  const axiosSecure = useAxiosSecure();
-  const queryClient = useQueryClient();
+  const {
+    printers,
+    isLoading,
+    addPrinter,
+    editPrinter,
+    deletePrinter,
+    downloadBridge,
+  } = usePrinterManagement();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -21,65 +26,6 @@ const PrinterManagement = () => {
   const [deviceName, setDeviceName] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
   const [ipAddress, setIpAddress] = useState("");
-
-  const { data: printersResponse, isLoading } = useQuery({
-    queryKey: ["printers"],
-    queryFn: async () => {
-      const res = await axiosSecure.get("/business-owner/printer");
-      return res.data;
-    },
-  });
-
-  const printers = printersResponse?.data || [];
-
-  // Mutations
-  const addPrinterMutation = useMutation({
-    mutationFn: async (newPrinter) => {
-      const res = await axiosSecure.post("/business-owner/printer", newPrinter);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(["printers"]);
-      toast.success("Printer added successfully");
-      closeModals();
-    },
-    onError: (err) => {
-      toast.error(err?.response?.data?.message || "Failed to add printer");
-    },
-  });
-
-  const editPrinterMutation = useMutation({
-    mutationFn: async ({ id, data }) => {
-      const res = await axiosSecure.patch(
-        `/business-owner/printer/${id}`,
-        data,
-      );
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(["printers"]);
-      toast.success("Printer updated successfully");
-      closeModals();
-    },
-    onError: (err) => {
-      toast.error(err?.response?.data?.message || "Failed to update printer");
-    },
-  });
-
-  const deletePrinterMutation = useMutation({
-    mutationFn: async (id) => {
-      const res = await axiosSecure.delete(`/business-owner/printer/${id}`);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(["printers"]);
-      toast.success("Printer deleted successfully");
-      closeModals();
-    },
-    onError: (err) => {
-      toast.error(err?.response?.data?.message || "Failed to delete printer");
-    },
-  });
 
   const closeModals = () => {
     setIsAddModalOpen(false);
@@ -97,11 +43,16 @@ const PrinterManagement = () => {
       toast.error("Please fill in all fields");
       return;
     }
-    addPrinterMutation.mutate({
-      device_name: deviceName,
-      serial_number: serialNumber,
-      ip_address: ipAddress,
-    });
+    addPrinter(
+      {
+        device_name: deviceName,
+        serial_number: serialNumber,
+        ip_address: ipAddress,
+      },
+      {
+        onSuccess: () => closeModals(),
+      }
+    );
   };
 
   const handleEditClick = (printer) => {
@@ -118,10 +69,15 @@ const PrinterManagement = () => {
       toast.error("Please fill in all fields");
       return;
     }
-    editPrinterMutation.mutate({
-      id: selectedPrinter.id,
-      data: { device_name: deviceName, serial_number: serialNumber, ip_address: ipAddress },
-    });
+    editPrinter(
+      {
+        id: selectedPrinter.id,
+        data: { device_name: deviceName, serial_number: serialNumber, ip_address: ipAddress },
+      },
+      {
+        onSuccess: () => closeModals(),
+      }
+    );
   };
 
   const handleDeleteClick = (printer) => {
@@ -131,53 +87,16 @@ const PrinterManagement = () => {
 
   const handleConfirmDelete = () => {
     if (selectedPrinter?.id) {
-      deletePrinterMutation.mutate(selectedPrinter.id);
+      deletePrinter(selectedPrinter.id, {
+        onSuccess: () => closeModals(),
+      });
     }
   };
 
   const handleDownloadBridge = async (printer) => {
     const mac = printer.serialNumber || printer.serial_number;
     const ip = printer.ipAddress || printer.ip_address;
-
-    if (!mac || !ip) {
-      toast.error("Printer must have a MAC address and IP address to download the bridge.");
-      return;
-    }
-
-    const toastId = toast.loading("Downloading bridge...");
-
-    try {
-      const res = await axiosSecure.get(
-        `/business-owner/printer/download-bridge?mac=${mac}&ip=${ip}`,
-        { responseType: "blob" }
-      );
-
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      
-      const contentDisposition = res.headers["content-disposition"];
-      let filename = "printer-bridge.zip";
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-        if (filenameMatch && filenameMatch.length === 2) {
-          let extractedFilename = filenameMatch[1];
-          if (!extractedFilename.endsWith('.zip')) {
-            extractedFilename += '.zip';
-          }
-          filename = extractedFilename;
-        }
-      }
-      
-      link.setAttribute("download", filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      toast.success("Download complete", { id: toastId });
-    } catch (err) {
-      console.error("Download error:", err);
-      toast.error("Failed to download bridge", { id: toastId });
-    }
+    await downloadBridge(mac, ip);
   };
 
   const columns = [

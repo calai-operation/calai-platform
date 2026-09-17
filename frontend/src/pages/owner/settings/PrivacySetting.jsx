@@ -1,3 +1,5 @@
+import React from "react";
+
 const sections = [
   {
     "title": "1. Account & Business Information",
@@ -66,7 +68,7 @@ const PrivacySetting = () => (
         <section key={section.title} aria-label={section.title}>
           <h3 className="font-semibold text-white mb-3">{section.title}</h3>
           <div className="space-y-3">
-            {section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+            {section.paragraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
           </div>
         </section>
       ))}

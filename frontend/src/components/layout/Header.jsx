@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import useAxiosSecure from '../../hooks/useAxiosSecure';
 import axios from 'axios';
 
-export default function Header({ onMenuClick }) {
+export default function Header({ onMenuClick, isDesktopCollapsed, onDesktopMenuClick }) {
   const [openDropdown, setOpenDropdown] = useState(false);
   const dropdownRef = useRef(null);
   
@@ -113,7 +113,7 @@ export default function Header({ onMenuClick }) {
       const close = convertTo24Hour(rawClose);
       
       if (!open || !close) {
-        setAgentStatus('Online');
+        setAgentStatus('Offline');
         return;
       }
       
@@ -136,7 +136,7 @@ export default function Header({ onMenuClick }) {
       const currentTime = currentTimeStr;
       
       if (open < close) {
-        setAgentStatus((currentTime >= open && currentTime < close) ? 'Online' : 'Offline');
+        setAgentStatus((currentTime >= open && currentTime <= close) ? 'Online' : 'Offline');
       } else {
         setAgentStatus((currentTime >= open || currentTime <= close) ? 'Online' : 'Offline');
       }
@@ -148,13 +148,23 @@ export default function Header({ onMenuClick }) {
   }, [businessInfoResponse, role]);
 
   return (
-    <header className="bg-[#141416] flex items-center px-4 md:px-6 py-3.5 relative gap-2 sm:gap-4">
+    <header className="bg-[#141416] flex items-center px-4 md:px-6 py-3.5 relative gap-2 sm:gap-4 border-b border-[#262626]">
       <button
-        aria-label="Open navigation"
         onClick={onMenuClick}
         className="2xl:hidden p-2 rounded bg-[#2563EB] text-white cursor-pointer shrink-0"
       >
         <FiMenu className="w-5 h-5 sm:w-[22px] sm:h-[22px]" />
+      </button>
+
+      {/* Desktop Collapse Button */}
+      <button
+        onClick={onDesktopMenuClick}
+        className="hidden 2xl:block p-1 text-[#64748B] hover:text-white transition-colors cursor-pointer shrink-0"
+      >
+        <Icon 
+          icon={isDesktopCollapsed ? "lucide:sidebar" : "lucide:sidebar-close"} 
+          className="w-6 h-6 sm:w-[24px] sm:h-[24px]" 
+        />
       </button>
 
       <div className="flex items-center justify-between w-full">
@@ -170,15 +180,15 @@ export default function Header({ onMenuClick }) {
           <FaSearch className="absolute top-1/2 -translate-y-1/2 left-3 text-[#64748B]"/>
         </div> */}
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-          <h3 className="text-2xl sm:text-2xl md:text-3xl lg:text-4xl font-medium text-white truncate">
-            {role === "SYSTEM_OWNER" ? "Calai Admin" : role === "BUSINESS_OWNER" ? businessName : "Welcome to Calai"}
+          <h3 className="text-2xl sm:text-xl md:text-2xl lg:text-3xl font-medium text-white truncate">
+            {role === "BUSINESS_OWNER" ? (businessName) : "Welcome to Calai"}
           </h3>
 
-          {role !== "SYSTEM_OWNER" && <Image
+          <Image
             src="/Hand.png"
             alt="hand"
             className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 rounded-full object-cover shrink-0"
-          />}
+          />
         </div>
 
 
@@ -186,6 +196,7 @@ export default function Header({ onMenuClick }) {
         <div className="flex items-center ml-auto gap-2 sm:gap-4 shrink-0">
           {role === "BUSINESS_OWNER" && (
             <div className="hidden sm:flex items-center gap-2 bg-[#1C2242] px-4 py-2 rounded-full border border-gray-800">
+              
               <div className={`flex items-center gap-2 ${agentStatus === 'Online' ? 'text-green-400' : 'text-gray-500'}`}>
                 <div className={`w-2 h-2 rounded-full ${agentStatus === 'Online' ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]' : 'bg-gray-500'}`}></div>
                 <span className="text-sm font-medium">{agentStatus}</span>

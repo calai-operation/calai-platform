@@ -1,50 +1,31 @@
-import { useState } from "react";
-import { Eye, X, Printer, Download, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import useAxiosSecure from "../../hooks/useAxiosSecure";
+import React, { useState } from "react";
+import { Eye, X, Printer, Download, Loader2, Search } from "lucide-react";
+import { useOrderList } from "../../hooks/useOrderList";
 import toast from "react-hot-toast";
 
 import Table from "../../components/Table";
 import Breadcrumb from "../../components/Breadcrumb";
-import "./RecordPages.css";
-import {weekRange,orderInRange} from "./order-dates";
 
 const OrderList = () => {
-  const axiosSecure = useAxiosSecure();
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
-  const [range,setRange]=useState(()=>weekRange());
-  const [datePreset,setDatePreset]=useState("week");
   const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: ordersResponse, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ["ordersList"],
-    queryFn: async () => {
-      const res = await axiosSecure.get("/business-owner/order");
-      return res.data;
-    },
-  });
+  const {
+    orders,
+    isLoading,
+    selectedOrder,
+    isDetailsLoading,
+    downloadReceipt,
+    printOrder,
+  } = useOrderList(selectedOrderId);
 
-  const { data: orderDetailsResponse, isLoading: isDetailsLoading } = useQuery({
-    queryKey: ["orderDetail", selectedOrderId],
-    enabled: !!selectedOrderId,
-    queryFn: async () => {
-      const res = await axiosSecure.get(
-        `/business-owner/order/${selectedOrderId}`,
-      );
-      return res.data;
-    },
-  });
-
-  const orders = ordersResponse?.data || [];
-  const orderTypes = [...new Set(orders.map(order => order.orderType).filter(Boolean))];
-  const filteredOrders = orders.filter(order =>
-    orderInRange(order,range) &&
-    (filter === 'all' || order.orderType === filter) &&
-    [order.number, order.customerName, order.time, order.date, order.orderType].some(value => String(value ?? '').toLowerCase().includes(search.trim().toLowerCase()))
-  );
-  const selectedOrder = orderDetailsResponse?.data;
   const orderProducts = selectedOrder?.items || [];
+
+  const filteredOrders = orders.filter(
+    (order) =>
+      order.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.number?.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
 
   const handleViewClick = (order) => {
     setSelectedOrderId(order.id);
@@ -54,64 +35,63 @@ const OrderList = () => {
     setSelectedOrderId(null);
   };
 
-  const handleDownload = async () => {
-    if (!selectedOrder) return;
-    try {
-      const toastId = toast.loading("Downloading receipt...");
-      const res = await axiosSecure.get(
-        `/business-owner/order/download-receipt/${selectedOrder.id}`,
-        {
-          responseType: "text",
-        },
-      );
-      const url = window.URL.createObjectURL(new Blob([res.data], { type: "text/plain" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `Receipt_${selectedOrder.id}.txt`);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode.removeChild(link);
-      toast.success("Download complete", { id: toastId });
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to download receipt. Please connect your printer.");
-    }
+  const handleDownload = () => {
+    downloadReceipt(selectedOrder?.id);
   };
 
-  const handlePrint = async () => {
-    if (!selectedOrder) return;
-    const toastId = toast.loading("Sending to printer...");
-    try {
-      await axiosSecure.get(`/business-owner/order/download/${selectedOrder.id}`);
-      toast.dismiss(toastId);
-      toast.success("Order sent to printer successfully!");
-    } catch (err) {
-      console.error(err);
-      toast.dismiss(toastId);
-      const errorMessage = err.response?.data?.message || "Failed to print. Please check your printer connection.";
-      toast.error(errorMessage);
-    }
+  const handlePrint = () => {
+    printOrder(selectedOrder?.id);
   };
 
   const columns = [
-    { key: "number", Title: "Phone number", width: "25%" },
+    { key: "number", Title: "Number", width: "15%" },
     { key: "customerName", Title: "Customer Name", width: "20%" },
-    { key: "confirmationStatus", Title: "Status", render: row => <span className={row.confirmationStatus === "unconfirmed" ? "record-badge record-badge-warning" : "record-badge"}>{row.confirmationStatus === "unconfirmed" ? "Unconfirmed Order" : "Confirmed"}</span> },
-    { key: "time", Title: "Time", width: "15%" },
-    { key: "date", Title: "Date", width: "15%" },
-    { key: "orderType", Title: "Order Type", width: "10%", render: row => <span className="record-badge">{row.orderType || "—"}</span> },
+    {
+      key: "orderType",
+      Title: "Order Type",
+      width: "15%",
+      render: (row) => (
+        <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-medium text-gray-300 bg-gray-800/50 border border-gray-700 whitespace-nowrap">
+          {row.orderType || "N/A"}
+        </span>
+      ),
+    },
+    {
+      key: "confirmationStatus",
+      Title: "Status",
+      width: "15%",
+      render: (row) => {
+        const status = row.confirmationStatus || "Pending";
+        const isUnconfirmed = status.toLowerCase().includes("unconfirm");
+
+        if (isUnconfirmed) {
+          return (
+            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-medium text-orange-400 bg-orange-500/10 border border-orange-500/30 whitespace-nowrap capitalize">
+              {status}
+            </span>
+          );
+        }
+        return (
+          <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-medium text-blue-400 bg-blue-500/10 border border-blue-500/30 whitespace-nowrap capitalize">
+            {status}
+          </span>
+        );
+      },
+    },
+    { key: "time", Title: "Time", width: "10%" },
+    { key: "date", Title: "Date", width: "10%" },
     {
       key: "action",
       Title: "Action",
-      width: "15%",
+      width: "10%",
       sortable: false,
       render: (row) => (
         <div className="flex justify-center">
           <button
             onClick={() => handleViewClick(row)}
-            className="record-action"
+            className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-800 rounded-lg"
           >
-            <Eye className="w-4 h-4" /><span>View order</span>
+            <Eye className="w-5 h-5" />
           </button>
         </div>
       ),
@@ -121,7 +101,7 @@ const OrderList = () => {
   if (isLoading) {
     return (
       <div>
-        <Breadcrumb text="Review incoming orders, view receipts and send them to your printer." />
+        <Breadcrumb text="You can see your order" />
         <div className="flex items-center justify-center min-h-[400px]">
           <Loader2 className="animate-spin text-[#2563EB] w-10 h-10" />
         </div>
@@ -130,34 +110,38 @@ const OrderList = () => {
   }
 
   return (
-    <div className="calai-records">
-      <Breadcrumb text="Review incoming orders, view receipts and send them to your printer." />
+    <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <Breadcrumb text="You can see your order" />
 
-      <div className="record-toolbar record-date-toolbar">
-        <label>Period<select aria-label="Order period" value={datePreset} onChange={e=>{const preset=e.target.value;setDatePreset(preset);if(preset==='week')setRange(weekRange());if(preset==='last-week')setRange(weekRange(new Date(),-1));if(preset==='all')setRange({start:'',end:''});}}><option value="week">This week</option><option value="last-week">Last week</option><option value="custom">Custom range</option><option value="all">All dates</option></select></label>
-        <label>From<input aria-label="Orders from date" type="date" value={range.start} max={range.end||undefined} onChange={e=>{setDatePreset('custom');setRange({...range,start:e.target.value});}}/></label>
-        <label>To<input aria-label="Orders to date" type="date" value={range.end} min={range.start||undefined} onChange={e=>{setDatePreset('custom');setRange({...range,end:e.target.value});}}/></label>
-        <span className="record-date-note">Monday–Sunday · London time</span>
+        {/* Search Bar */}
+        <div className="w-full sm:w-auto">
+          <div className="relative w-full sm:w-[300px]">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              className="block w-full pl-10 pr-3 py-2 border border-[#2A2A2A] rounded-xl leading-5 bg-[#1A1A1A] text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#2563EB] focus:border-[#2563EB] sm:text-sm transition-colors"
+              placeholder="Search by order number or customer..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
       </div>
-      <div className="record-toolbar">
-        <label className="record-search">Search orders<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Customer, phone, date or time…" /></label>
-        <label>Order type<select value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All order types</option>{orderTypes.map(type => <option key={type} value={type}>{type}</option>)}</select></label>
-        <button className="record-action" onClick={() => refetch()} disabled={isFetching}>{isFetching ? 'Refreshing…' : 'Refresh'}</button>
-      </div>
-      <div className="record-caption"><span>{isError ? 'Orders unavailable' : `${filteredOrders.length} of ${orders.length} orders`}</span><span>Sort by any column heading</span></div>
-      {isError && <p role="alert" className="record-error">Orders could not be loaded. Use Refresh to try again.</p>}
-      <div className="record-panel">
+
+      <div className="bg-[#191919] border border-[#1A1A1A] rounded-2xl overflow-hidden shadow-sm">
         {filteredOrders.length > 0 ? (
           <Table
             TableHeads={columns}
             TableRows={filteredOrders}
-            emptyState={<div className="record-empty">No orders match your search or filter.</div>}
             headClass=" border-b border-[#1A1A1A] text-gray-200 whitespace-nowrap last:[&>div]:justify-center"
             tableClass="border-none"
           />
         ) : (
           <div className="p-8 text-center text-gray-400 text-sm">
-            {orders.length ? "No orders match this date range, search or order type." : "No orders found."}
+            {searchQuery ? "No matching orders found." : "No orders found."}
           </div>
         )}
       </div>
@@ -165,19 +149,19 @@ const OrderList = () => {
       {/* View Modal */}
       {selectedOrderId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 text-white">
-          <div role="dialog" aria-modal="true" aria-label="Order summary" className="record-dialog bg-[#111111] border border-[#1A1A1A] rounded-[20px] w-full max-w-[700px] overflow-hidden relative shadow-2xl">
+          <div className="bg-[#111111] border border-[#1A1A1A] rounded-[20px] w-full max-w-[700px] overflow-hidden relative shadow-2xl">
             {/* Header */}
             <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-[#1A1A1A] flex justify-between items-center">
               <h2 className="text-[17px] text-gray-200 flex items-center gap-2">
                 Order Summary
                 {selectedOrder && (
                   <span className="text-gray-400 font-normal">
-                    ({selectedOrder.customerName || "Customer"}) {selectedOrder.time ? `• ${selectedOrder.time}` : ""}
+                    ({selectedOrder.customerName || "Customer"}){" "}
+                    {selectedOrder.time ? `• ${selectedOrder.time}` : ""}
                   </span>
                 )}
               </h2>
               <button
-                aria-label="Close order summary"
                 onClick={closeModal}
                 className="text-gray-400 hover:text-white transition-colors cursor-pointer"
               >
@@ -191,7 +175,6 @@ const OrderList = () => {
               </div>
             ) : (
               <>
-                {selectedOrder?.confirmationStatus === 'unconfirmed' && <div className="px-4 sm:px-8 py-4 text-orange-200"><strong>Unconfirmed Order</strong><p className="mt-1 text-sm">{selectedOrder.unconfirmedReason}</p></div>}
                 {/* Table Content */}
                 <div className="px-4 sm:px-8 py-2 max-h-[400px] overflow-y-auto overflow-x-auto">
                   <table className="w-full text-left border-collapse">
@@ -224,7 +207,7 @@ const OrderList = () => {
                               </span>
                             </td>
                             <td className="py-5 text-[14px] text-gray-300 text-right">
-                              {selectedOrder?.confirmationStatus === "unconfirmed" && product.unit_prize === null ? "Price unknown" : `£${Number(product.unit_prize || 0).toFixed(2)}`}
+                              £{product.unit_prize || 0}
                             </td>
                           </tr>
                         ))
@@ -247,7 +230,7 @@ const OrderList = () => {
                   <div className="text-[15px] font-medium text-white w-full sm:w-auto text-center sm:text-left">
                     Total:{" "}
                     <span className="text-[#2563EB]">
-                      {selectedOrder?.confirmationStatus === "unconfirmed" && selectedOrder.totalPrice === null ? "Not confirmed" : `£${Number(selectedOrder?.totalPrice || 0).toFixed(2)}`}
+                      £{selectedOrder?.totalPrice || 0}
                     </span>
                   </div>
                   <div className="flex gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-start">
