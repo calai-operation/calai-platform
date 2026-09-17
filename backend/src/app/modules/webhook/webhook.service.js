@@ -11,7 +11,10 @@ import {
 import { generateReceiptText } from "../businessowner/printer/printer.service.js";
 
 import { validateOrderConfirmation } from "./helpers/order-validator.js";
-import { syncOrderRecord, cleanupCancelledOrder } from "./helpers/order-sync.js";
+import {
+  syncOrderRecord,
+  cleanupCancelledOrder,
+} from "./helpers/order-sync.js";
 import {
   promoteDirectCallIfExist,
   parseCallTiming,

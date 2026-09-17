@@ -137,30 +137,31 @@ const getDashboardStatsFromDB = async () => {
 
   const sparklineResults = await Promise.all(
     days.map(async ({ start, end }) => {
-      const [tenantsCount, subsCount, revSum, expiringCount] = await Promise.all([
-        prisma.business.count({
-          where: { createdAt: { gte: start, lte: end } },
-        }),
-        prisma.subscription.count({
-          where: {
-            status: "active",
-            createdAt: { gte: start, lte: end },
-          },
-        }),
-        prisma.invoice.aggregate({
-          where: {
-            status: "paid",
-            createdAt: { gte: start, lte: end },
-          },
-          _sum: { amount: true },
-        }),
-        prisma.subscription.count({
-          where: {
-            status: "active",
-            endDate: { gte: start, lte: end },
-          },
-        }),
-      ]);
+      const [tenantsCount, subsCount, revSum, expiringCount] =
+        await Promise.all([
+          prisma.business.count({
+            where: { createdAt: { gte: start, lte: end } },
+          }),
+          prisma.subscription.count({
+            where: {
+              status: "active",
+              createdAt: { gte: start, lte: end },
+            },
+          }),
+          prisma.invoice.aggregate({
+            where: {
+              status: "paid",
+              createdAt: { gte: start, lte: end },
+            },
+            _sum: { amount: true },
+          }),
+          prisma.subscription.count({
+            where: {
+              status: "active",
+              endDate: { gte: start, lte: end },
+            },
+          }),
+        ]);
 
       return {
         tenantsCount,

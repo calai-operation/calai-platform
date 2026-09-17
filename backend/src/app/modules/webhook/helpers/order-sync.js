@@ -15,15 +15,9 @@ export async function syncOrderRecord({
   sendOrderConfirmationEmail,
 }) {
   const orderItems =
-    orderData.final_items ||
-    orderData.order_items ||
-    orderData.items ||
-    [];
+    orderData.final_items || orderData.order_items || orderData.items || [];
   const totalPrice = Number(
-    orderData.total_price ||
-      orderData.totalPrice ||
-      orderData.total ||
-      0,
+    orderData.total_price || orderData.totalPrice || orderData.total || 0,
   );
   const customerName =
     orderData.customer_name ||
@@ -43,8 +37,7 @@ export async function syncOrderRecord({
     pickupTime,
   } = parseOrderTypeAndAddress(orderData, call?.startTime);
 
-  const deliveryAddress =
-    parsedAddress || fallbackCustomer.address || null;
+  const deliveryAddress = parsedAddress || fallbackCustomer.address || null;
 
   const existingOrder = await prisma.order.findUnique({
     where: { callId: call.id },
