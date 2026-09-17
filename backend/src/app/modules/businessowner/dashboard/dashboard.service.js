@@ -316,7 +316,11 @@ export function callSeries(rows, now = Date.now()) {
   return { daily, weekly };
 }
 
-export async function getOwnerInsights(prismaOrUserId = prisma, maybeUserId, maybeNow = Date.now()) {
+export async function getOwnerInsights(
+  prismaOrUserId = prisma,
+  maybeUserId,
+  maybeNow = Date.now(),
+) {
   let prismaClient = prisma;
   let userId;
   let now = maybeNow;
@@ -380,7 +384,11 @@ export async function getOwnerInsights(prismaOrUserId = prisma, maybeUserId, may
   };
 }
 
-export async function getOwnerLiveCalls(prismaOrUserId = prisma, maybeUserId, maybeGetLive = getLiveOperations) {
+export async function getOwnerLiveCalls(
+  prismaOrUserId = prisma,
+  maybeUserId,
+  maybeGetLive = getLiveOperations,
+) {
   let prismaClient = prisma;
   let userId;
   let getLive = maybeGetLive;

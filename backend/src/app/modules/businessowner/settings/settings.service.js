@@ -86,11 +86,17 @@ const updateBusinessDetailsInDB = async (userId, data) => {
     await tx.businessSetting.upsert({
       where: { businessId: business.id },
       update: {
-        ...(data.name !== undefined ? {businessName:data.name} : {}),
-        ...(data.address !== undefined ? {businessAddress:data.address} : {}),
-        ...(data.openingTime !== undefined ? {openingTime:data.openingTime} : {}),
-        ...(data.closingTime !== undefined ? {closingTime:data.closingTime} : {}),
-        ...(data.offDays !== undefined ? {offDays:data.offDays} : {}),
+        ...(data.name !== undefined ? { businessName: data.name } : {}),
+        ...(data.address !== undefined
+          ? { businessAddress: data.address }
+          : {}),
+        ...(data.openingTime !== undefined
+          ? { openingTime: data.openingTime }
+          : {}),
+        ...(data.closingTime !== undefined
+          ? { closingTime: data.closingTime }
+          : {}),
+        ...(data.offDays !== undefined ? { offDays: data.offDays } : {}),
       },
       create: {
         businessId: business.id,
@@ -104,7 +110,11 @@ const updateBusinessDetailsInDB = async (userId, data) => {
 
     return updatedBusiness;
   });
-  if (data.openingTime !== undefined || data.closingTime !== undefined || data.offDays !== undefined) {
+  if (
+    data.openingTime !== undefined ||
+    data.closingTime !== undefined ||
+    data.offDays !== undefined
+  ) {
     await syncBusinessAgentStatus(business.id);
   }
   return updatedBusiness;
