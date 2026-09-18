@@ -54,6 +54,26 @@ const getTenantByIdFromDB = async (id) => {
           phone: true,
         },
       },
+      agents: {
+        select: {
+          id: true,
+          name: true,
+          status: true,
+        },
+      },
+      printers: {
+        select: {
+          id: true,
+          deviceName: true,
+          status: true,
+          lastSeen: true,
+          printJobs: {
+            select: {
+              status: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -144,6 +164,27 @@ const getTenantByIdFromDB = async (id) => {
     }
   }
 
+  let pendingJobsCount = 0;
+  let failedJobsCount = 0;
+  const now = Date.now();
+  const formattedPrinters = (tenant.printers || []).map((p) => {
+    const last = Date.parse(p.lastSeen);
+    const fresh = Number.isFinite(last) && now - last <= 60000 && now >= last;
+    const computedStatus = p.status === "online" ? (fresh ? "online" : "offline") : (p.status || "offline");
+
+    const pending = (p.printJobs || []).filter((j) => j.status === "pending").length;
+    const failed = (p.printJobs || []).filter((j) => j.status === "failed").length;
+    pendingJobsCount += pending;
+    failedJobsCount += failed;
+
+    return {
+      id: p.id,
+      name: p.deviceName,
+      status: computedStatus,
+      lastSeen: p.lastSeen,
+    };
+  });
+
   return {
     id: tenant.id,
     name: tenant.name,
@@ -152,10 +193,17 @@ const getTenantByIdFromDB = async (id) => {
     business_type: tenant.businessType,
     joined_date: tenant.createdAt,
     status: tenant.status,
+    agents: tenant.agents || [],
+    printers: formattedPrinters,
+    printJobs: {
+      pending: pendingJobsCount,
+      failed: failedJobsCount,
+    },
     usage: {
       used: usedMinutes,
       remaining: remainingMinutes,
       total: totalMinutes,
+      allowance: totalMinutes,
     },
   };
 };
