@@ -170,8 +170,8 @@ const TestCallWindow = () => {
   }, [transcripts, activeTranscript]);
 
   return (
-    <div className="p-6 h-full flex flex-col">
-      <div className="mb-8">
+    <div className=" h-full flex flex-col">
+      <div className="mb-4">
         <Breadcrumb text={"Check the voice tester"} />
       </div>
 
