@@ -113,7 +113,11 @@ const RecentTrainingList = () => {
                     <span className="text-white text-sm font-medium capitalize">{agent.status || 'Unknown'}</span>
                   </div>
                   <div className="text-gray-400 text-sm sm:w-24 sm:text-right">
-                    {agent.createdAt ? new Date(agent.createdAt).toLocaleDateString() : 'Recently'}
+                    {agent.createdAt
+                      ? new Date(agent.createdAt).toLocaleDateString("en-GB", {
+                          timeZone: "Europe/London",
+                        })
+                      : "Recently"}
                   </div>
                 </div>
                 

@@ -3,6 +3,7 @@ import Table from "../../../components/Table";
 import { useQuery } from "@tanstack/react-query";
 import useAxiosSecure from "../../../hooks/useAxiosSecure";
 import { Loader2 } from "lucide-react";
+import { formatUKDate } from "../../../utils/date";
 
 const BillingHistory = () => {
   const axiosSecure = useAxiosSecure();
@@ -25,14 +26,7 @@ const BillingHistory = () => {
     { key: "amount", Title: "Amount", width: "20%" },
   ];
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "2-digit",
-      day: "2-digit",
-      year: "numeric",
-    });
-  };
+  const formatDate = (dateString) => formatUKDate(dateString);
 
   const tableRows = invoices.map((inv, idx) => ({
     id: inv.id || idx,

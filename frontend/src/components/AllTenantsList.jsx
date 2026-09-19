@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import Table from './Table';
 import Dropdown from './Dropdown';
 import { downloadCSV } from '../utils/export';
+import { getUKToday } from '../utils/date';
 import TenantDetailSlideOver from './TenantDetailSlideOver';
 
 const AllTenantsList = ({ tenants = [], setActiveTab }) => {
@@ -118,7 +119,7 @@ const AllTenantsList = ({ tenants = [], setActiveTab }) => {
     liveCalls: t.liveCalls || 0,
     calls: t.callCount || 0,
     minutes: t.minutes != null ? t.minutes.toFixed(1) : 0,
-    vapiCosts: t.costs?.vapi?.USD != null ? `US$${t.costs.vapi.USD.toFixed(3)}` : 'US$0.000',
+    vapiCosts: t.costs?.vapi?.USD != null ? `$${t.costs.vapi.USD.toFixed(3)}` : 'US$0.000',
     twilioCharges: { 
       cost: t.costs?.twilio?.GBP != null ? `£${t.costs.twilio.GBP.toFixed(3)}` : '£0.000', 
       pending: `${t.twilio?.pendingPrices || 0} prices pending` 
@@ -149,7 +150,7 @@ const AllTenantsList = ({ tenants = [], setActiveTab }) => {
         "Printers Status": t.printers?.some(p => p.status === 'offline') ? 'Offline' : (t.printers?.length ? 'Online' : 'None')
       }));
 
-      const dateStr = new Date().toISOString().split('T')[0];
+      const dateStr = getUKToday();
       await downloadCSV(`Tenants_Export_${dateStr}`, exportData);
       toast.success("CSV file downloaded successfully!");
     } catch (error) {

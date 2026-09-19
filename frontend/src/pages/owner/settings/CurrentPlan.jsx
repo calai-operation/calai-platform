@@ -2,6 +2,7 @@ import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import useAxiosSecure from "../../../hooks/useAxiosSecure";
 import { Loader2 } from "lucide-react";
+import { formatUKDate } from "../../../utils/date";
 
 const CurrentPlan = () => {
   const axiosSecure = useAxiosSecure();
@@ -34,14 +35,7 @@ const CurrentPlan = () => {
     );
   }
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "numeric",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
+  const formatDate = (dateString) => formatUKDate(dateString);
 
   return (
     <div className="relative bg-[#0E0E10] border border-[#272727] rounded-2xl p-6 mt-6 mb-12 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">

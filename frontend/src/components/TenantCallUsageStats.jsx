@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Icon } from '@iconify/react';
+import { getUKToday } from '../utils/date';
 
 const MetricCard = ({ label, value, note, icon }) => (
   <div className="bg-[#161616] rounded-xl border border-[#262626] p-5 flex flex-col justify-between">
@@ -15,7 +16,7 @@ const MetricCard = ({ label, value, note, icon }) => (
 );
 
 const TenantCallUsageStats = ({ tenant }) => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getUKToday();
   const [period, setPeriod] = useState({
     start: today.slice(0, 7) + "-01",
     end: today,
@@ -44,8 +45,8 @@ const TenantCallUsageStats = ({ tenant }) => {
   const formatDate = (date) => {
     if (!date) return "Not recorded";
     return new Date(date).toLocaleString("en-GB", {
-      timeZone: "UTC",
-      day: "2-digit",
+      timeZone: "Europe/London",
+      day: "numeric",
       month: "short",
       year: "numeric",
       hour: "2-digit",
@@ -69,11 +70,12 @@ const TenantCallUsageStats = ({ tenant }) => {
 
       {/* Filter bar */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-[#262626] pb-4">
-        <div className="flex items-center gap-3 bg-[#111111] border border-[#262626] rounded-lg px-3 py-2 text-[13px] text-gray-300">
-          <Icon icon="lucide:calendar-days" className="w-4 h-4 text-gray-500" />
+        <div className="flex items-center gap-3 bg-[#111111] border border-[#262626] rounded-lg px-3 py-2 text-[13px] text-gray-300 [color-scheme:dark]">
+          <Icon icon="lucide:calendar-days" className="w-4 h-4 text-gray-500 shrink-0" />
           <input
             type="date"
-            className="bg-transparent outline-none text-white w-[110px]"
+            className="bg-transparent outline-none text-white w-[115px] cursor-pointer font-medium [color-scheme:dark]"
+            style={{ colorScheme: 'dark' }}
             value={period.start}
             max={period.end}
             onChange={(e) => e.target.value && setPeriod({ ...period, start: e.target.value })}
@@ -81,16 +83,17 @@ const TenantCallUsageStats = ({ tenant }) => {
           <span className="text-gray-500">—</span>
           <input
             type="date"
-            className="bg-transparent outline-none text-white w-[110px]"
+            className="bg-transparent outline-none text-white w-[115px] cursor-pointer font-medium [color-scheme:dark]"
+            style={{ colorScheme: 'dark' }}
             value={period.end}
             min={period.start}
             max={today}
             onChange={(e) => e.target.value && setPeriod({ ...period, end: e.target.value })}
           />
-          <span className="text-gray-500 border-l border-[#333] pl-3 ml-1">UTC</span>
+          <span className="text-gray-500 text-[11px] font-semibold border-l border-[#333] pl-2.5 ml-0.5 shrink-0">UK</span>
         </div>
         <div className="text-[12px] text-gray-500">
-          Updated {formatDate(new Date())} UTC
+          Updated {formatDate(new Date())}
         </div>
       </div>
 

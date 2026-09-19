@@ -1,5 +1,6 @@
 import React from 'react';
 import Table from './Table';
+import { UK_TIMEZONE } from '../utils/date';
 
 const PrinterHealthTabContent = ({ tenants = [] }) => {
 
@@ -29,7 +30,7 @@ const PrinterHealthTabContent = ({ tenants = [] }) => {
     },
     { 
       key: "lastSeen", 
-      Title: "LAST SEEN (UTC)",
+      Title: "LAST SEEN (UK)",
       render: (row) => <span className="whitespace-nowrap text-[13px] font-medium text-white">{row.lastSeen}</span>
     },
     { 
@@ -48,7 +49,7 @@ const PrinterHealthTabContent = ({ tenants = [] }) => {
     if (!dateString) return '-';
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return '-';
-    return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}, ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+    return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: UK_TIMEZONE })}, ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: UK_TIMEZONE })}`;
   };
 
   const mappedPrinters = tenants.flatMap(t => 

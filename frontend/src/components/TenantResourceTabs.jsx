@@ -15,33 +15,28 @@ import { jsPDF } from "jspdf";
 import toast from "react-hot-toast";
 import Table from "./Table";
 import Dropdown from "./Dropdown";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import useAxiosSecure from "../hooks/useAxiosSecure";
+import { useViewTenant } from "../hooks/useViewTenant";
+import { formatUKDate } from "../utils/date";
 
-const TenantResourceTabs = ({ tenant, id }) => {
-  const axiosSecure = useAxiosSecure();
-  const queryClient = useQueryClient();
+const TenantResourceTabs = ({ tenant, id, viewTenantData }) => {
+  const hookData = useViewTenant(id);
+  const data = viewTenantData || hookData;
+
+  const {
+    agentsData,
+    billingData,
+    callsData,
+    ordersData,
+    deleteAgentMutation,
+    printOrder,
+    downloadOrderReceipt,
+  } = data;
 
   const [activeTab, setActiveTab] = useState("agents");
   const [modalState, setModalState] = useState({
     isOpen: false,
     type: null,
     data: null,
-  });
-
-  const deleteAgentMutation = useMutation({
-    mutationFn: async (agentId) => {
-      const res = await axiosSecure.delete(`/system-owner/agent/${agentId}`);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(["tenantAgents", id]);
-      toast.success("Agent deleted successfully");
-      setModalState({ isOpen: false, type: null, data: null });
-    },
-    onError: (err) => {
-      toast.error(err?.response?.data?.message || "Failed to delete agent");
-    },
   });
 
   const handleActionSelect = (option, row) => {
@@ -107,96 +102,17 @@ const TenantResourceTabs = ({ tenant, id }) => {
     setSelectedOrder(null);
   };
 
-  const handlePrintOrder = async () => {
-    if (!selectedOrder) return;
-    const toastId = toast.loading("Sending to printer...");
-    try {
-      await axiosSecure.get(
-        `/business-owner/order/download/${selectedOrder.id}`,
-      );
-      toast.dismiss(toastId);
-      toast.success("Order sent to printer successfully!");
-    } catch (err) {
-      console.error(err);
-      toast.dismiss(toastId);
-      const errorMessage =
-        err.response?.data?.message ||
-        "Failed to print. Please check your printer connection.";
-      toast.error(errorMessage);
+  const handlePrintOrder = () => {
+    if (selectedOrder) {
+      printOrder(selectedOrder.id);
     }
   };
 
-  const handleDownloadOrder = async () => {
-    if (!selectedOrder) return;
-    try {
-      const toastId = toast.loading("Downloading receipt...");
-      const res = await axiosSecure.get(
-        `/business-owner/order/download-receipt/${selectedOrder.id}`,
-        {
-          responseType: "text",
-        },
-      );
-      const url = window.URL.createObjectURL(
-        new Blob([res.data], { type: "text/plain" }),
-      );
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `Receipt_${selectedOrder.id}.txt`);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode.removeChild(link);
-      toast.success("Download complete", { id: toastId });
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to download receipt.");
+  const handleDownloadOrder = () => {
+    if (selectedOrder) {
+      downloadOrderReceipt(selectedOrder.id);
     }
   };
-
-  const { data: agentsResponse } = useQuery({
-    queryKey: ["tenantAgents", id],
-    queryFn: async () => {
-      const res = await axiosSecure.get(
-        `/system-owner/individual-tenant/${id}/agents`,
-      );
-      return res.data;
-    },
-  });
-
-  const { data: billingResponse } = useQuery({
-    queryKey: ["tenantBilling", id],
-    queryFn: async () => {
-      const res = await axiosSecure.get(
-        `/system-owner/individual-tenant/${id}/billing`,
-      );
-      return res.data;
-    },
-  });
-
-  const { data: callsResponse } = useQuery({
-    queryKey: ["tenantCalls", id],
-    queryFn: async () => {
-      const res = await axiosSecure.get(
-        `/system-owner/individual-tenant/${id}/calls`,
-      );
-      return res.data;
-    },
-  });
-
-  const { data: ordersResponse } = useQuery({
-    queryKey: ["tenantOrders", id],
-    queryFn: async () => {
-      const res = await axiosSecure.get(
-        `/system-owner/individual-tenant/${id}/orders`,
-      );
-      return res.data;
-    },
-  });
-
-  const agentsData = agentsResponse?.data || tenant?.agents || [];
-  const billingData = billingResponse?.data || tenant?.billingHistory || [];
-  const callsData =
-    callsResponse?.data || tenant?.calls || tenant?.callSummaries || [];
-  const ordersData = ordersResponse?.data || tenant?.orders || [];
 
   const billingColumns = [
     {
@@ -206,7 +122,7 @@ const TenantResourceTabs = ({ tenant, id }) => {
       sortable: true,
       render: (row) => (
         <div className="text-left text-gray-200">
-          {row.date ? new Date(row.date).toLocaleDateString("en-GB") : "N/A"}
+          {formatUKDate(row.date)}
         </div>
       ),
     },
@@ -298,13 +214,7 @@ const TenantResourceTabs = ({ tenant, id }) => {
       sortable: true,
       render: (row) => (
         <div className="text-left text-gray-200">
-          {row.created_date && row.created_date !== "N/A"
-            ? isNaN(new Date(row.created_date).getTime())
-              ? row.created_date
-              : new Date(row.created_date).toLocaleDateString("en-GB")
-            : row.created_at
-              ? new Date(row.created_at).toLocaleDateString("en-GB")
-              : "N/A"}
+          {formatUKDate(row.created_date && row.created_date !== "N/A" ? row.created_date : row.created_at)}
         </div>
       ),
     },
@@ -360,13 +270,7 @@ const TenantResourceTabs = ({ tenant, id }) => {
       width: "20%",
       render: (row) => (
         <div className="text-left text-gray-200">
-          {row.date && row.date !== "N/A"
-            ? isNaN(new Date(row.date).getTime())
-              ? row.date
-              : new Date(row.date).toLocaleDateString("en-GB")
-            : row.created_at
-              ? new Date(row.created_at).toLocaleDateString("en-GB")
-              : "N/A"}
+          {formatUKDate(row.date && row.date !== "N/A" ? row.date : row.created_at)}
         </div>
       ),
     },
@@ -428,13 +332,7 @@ const TenantResourceTabs = ({ tenant, id }) => {
       width: "10%",
       render: (row) => (
         <div className="text-left text-gray-200">
-          {row.date && row.date !== "N/A"
-            ? isNaN(new Date(row.date).getTime())
-              ? row.date
-              : new Date(row.date).toLocaleDateString("en-GB")
-            : row.created_at
-              ? new Date(row.created_at).toLocaleDateString("en-GB")
-              : "N/A"}
+          {formatUKDate(row.date && row.date !== "N/A" ? row.date : row.created_at)}
         </div>
       ),
     },

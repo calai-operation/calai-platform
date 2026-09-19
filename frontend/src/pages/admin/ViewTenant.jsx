@@ -3,63 +3,31 @@ import { useParams, Link } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import TenantCallUsageSection from "../../components/TenantCallUsageSection";
 import TenantResourceTabs from "../../components/TenantResourceTabs";
-import { useQuery } from "@tanstack/react-query";
-import useAxiosSecure from "../../hooks/useAxiosSecure";
+import { useViewTenant } from "../../hooks/useViewTenant";
 
 const formatPrinterLastSeen = (dateString) => {
-  if (!dateString) return "Last seen 16 Sept 2026, 13:17 UTC";
+  if (!dateString) return "No heartbeat recorded";
   const d = new Date(dateString);
-  if (isNaN(d.getTime())) return "Last seen 16 Sept 2026, 13:17 UTC";
-  const day = d.getUTCDate();
-  const months = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sept",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
-  const month = months[d.getUTCMonth()];
-  const year = d.getUTCFullYear();
-  const hours = String(d.getUTCHours()).padStart(2, "0");
-  const minutes = String(d.getUTCMinutes()).padStart(2, "0");
-  return `Last seen ${day} ${month} ${year}, ${hours}:${minutes} UTC`;
+  if (isNaN(d.getTime())) return "No heartbeat recorded";
+  const day = d.toLocaleString("en-GB", { day: "numeric", timeZone: "Europe/London" });
+  const month = d.toLocaleString("en-GB", { month: "short", timeZone: "Europe/London" });
+  const year = d.toLocaleString("en-GB", { year: "numeric", timeZone: "Europe/London" });
+  const time = d.toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" });
+  return `Last seen ${day} ${month} ${year}, ${time}`;
 };
 
 const ViewTenant = () => {
   const { id } = useParams();
-  const axiosSecure = useAxiosSecure();
-
+  const viewTenantData = useViewTenant(id);
   const {
-    data: tenantResponse,
+    tenant,
+    agentsList,
+    liveTenant,
+    opTenant,
     isLoading,
     isError,
     error,
-  } = useQuery({
-    queryKey: ["tenant", id],
-    queryFn: async () => {
-      const res = await axiosSecure.get(`/system-owner/tenants/${id}`);
-      return res.data;
-    },
-  });
-
-  const { data: agentsResponse } = useQuery({
-    queryKey: ["tenantAgents", id],
-    queryFn: async () => {
-      const res = await axiosSecure.get(
-        `/system-owner/individual-tenant/${id}/agents`
-      );
-      return res.data;
-    },
-  });
-
-  const tenant = tenantResponse?.data;
+  } = viewTenantData;
 
   if (isLoading) {
     return (
@@ -82,47 +50,67 @@ const ViewTenant = () => {
     );
   }
 
-  const agentsList = agentsResponse?.data || tenant.agents || [];
-  const totalAgentsCount =
-    agentsList.length > 0 ? agentsList.length : 1;
-  const activeAgentsCount =
-    agentsList.length > 0
-      ? agentsList.filter(
-          (a) => (a.status || "active").toLowerCase() === "active"
-        ).length
-      : 1;
+  const totalAgentsCount = agentsList.length;
+  const activeAgentsCount = agentsList.filter(
+    (a) => (a.status || "").toLowerCase() === "active"
+  ).length;
 
   const usedMinutes =
-    tenant.usage?.used !== undefined ? tenant.usage.used : 46.3;
+    tenant.usage?.used !== undefined ? tenant.usage.used : (opTenant?.usage?.used ?? 0);
   const allowanceMinutes =
-    tenant.usage?.total || tenant.usage?.allowance || 25;
+    tenant.usage?.total || tenant.usage?.allowance || (opTenant?.minuteLimit ?? 0);
   const remainingMinutes =
-    tenant.usage?.remaining !== undefined ? tenant.usage.remaining : 0;
+    tenant.usage?.remaining !== undefined
+      ? tenant.usage.remaining
+      : Math.max(0, allowanceMinutes - usedMinutes);
 
   const percentUsed =
     allowanceMinutes > 0
       ? Math.min(100, Math.round((usedMinutes / allowanceMinutes) * 100))
-      : 100;
+      : 0;
   const progressWidth = percentUsed;
 
   const statusLower = tenant.status?.toLowerCase() || "active";
 
   const joinedDate = tenant.joined_date
-    ? new Date(tenant.joined_date).toLocaleDateString("en-GB")
-    : "09/09/2026";
+    ? new Date(tenant.joined_date).toLocaleDateString("en-GB", {
+        timeZone: "Europe/London",
+      })
+    : (tenant.createdAt
+      ? new Date(tenant.createdAt).toLocaleDateString("en-GB", {
+          timeZone: "Europe/London",
+        })
+      : "N/A");
 
   const tenantInitials = tenant.name
     ? tenant.name.substring(0, 2).toUpperCase()
     : "TE";
 
-  const primaryPrinter = tenant.printers?.[0] || {};
-  const printerName =
-    primaryPrinter.name || primaryPrinter.deviceName || "Home Print";
+  const tenantPrinters =
+    (tenant.printers && tenant.printers.length > 0)
+      ? tenant.printers
+      : (liveTenant?.printers && liveTenant.printers.length > 0)
+        ? liveTenant.printers
+        : (opTenant?.printers && opTenant.printers.length > 0)
+          ? opTenant.printers
+          : [];
+
+  const hasPrinter = tenantPrinters.length > 0;
+  const primaryPrinter = hasPrinter ? tenantPrinters[0] : null;
+
+  const printerName = hasPrinter
+    ? (primaryPrinter.name || primaryPrinter.deviceName || "Printer")
+    : "No printer connected";
+
   const isPrinterOnline =
-    (primaryPrinter.status || "").toLowerCase() === "online";
-  const printerLastSeenText = formatPrinterLastSeen(primaryPrinter.lastSeen);
-  const pendingJobs = tenant.printJobs?.pending ?? 0;
-  const failedJobs = tenant.printJobs?.failed ?? 0;
+    hasPrinter && (primaryPrinter.status || "").toLowerCase() === "online";
+
+  const printerLastSeenText = hasPrinter
+    ? formatPrinterLastSeen(primaryPrinter.lastSeen)
+    : "No printer configured for this tenant";
+
+  const pendingJobs = tenant.printJobs?.pending ?? opTenant?.printJobs?.pending ?? 0;
+  const failedJobs = tenant.printJobs?.failed ?? opTenant?.printJobs?.failed ?? 0;
 
   return (
     <div className="space-y-6">
@@ -290,17 +278,23 @@ const ViewTenant = () => {
               <div>
                 <span
                   className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium ${
-                    isPrinterOnline
+                    !hasPrinter
+                      ? "bg-[#1e293b] border border-[#334155] text-gray-400"
+                      : isPrinterOnline
                       ? "bg-[#0B2519] border border-[#164832] text-[#4ADE80]"
                       : "bg-[#281515] border border-[#481E1E] text-[#F87171]"
                   }`}
                 >
                   <span
                     className={`w-1.5 h-1.5 rounded-full ${
-                      isPrinterOnline ? "bg-[#4ADE80]" : "bg-[#F87171]"
+                      !hasPrinter
+                        ? "bg-gray-400"
+                        : isPrinterOnline
+                        ? "bg-[#4ADE80]"
+                        : "bg-[#F87171]"
                     }`}
                   />
-                  {isPrinterOnline ? "online" : "offline"}
+                  {!hasPrinter ? "not connected" : isPrinterOnline ? "online" : "offline"}
                 </span>
               </div>
             </div>
@@ -313,8 +307,8 @@ const ViewTenant = () => {
         </div>
       </div>
 
-      <TenantCallUsageSection tenant={tenant} />
-      <TenantResourceTabs tenant={tenant} id={id} />
+      <TenantCallUsageSection tenant={tenant} viewTenantData={viewTenantData} />
+      <TenantResourceTabs tenant={tenant} id={id} viewTenantData={viewTenantData} />
     </div>
   );
 };

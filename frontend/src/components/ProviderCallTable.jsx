@@ -44,13 +44,13 @@ const ProviderCallTable = ({ title, description, calls = [], tenantName }) => {
     },
     {
       key: 'time',
-      Title: 'TIME (UTC)',
+      Title: 'TIME ',
       render: (row) => {
         const date = new Date(row.time || row.createdAt || new Date());
         return (
           <div className="text-[13px] text-white">
             {date.toLocaleString('en-GB', {
-              timeZone: 'UTC',
+              timeZone: 'Europe/London',
               day: '2-digit',
               month: 'short',
               hour: '2-digit',

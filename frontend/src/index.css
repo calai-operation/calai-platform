@@ -16,9 +16,19 @@ button{
   cursor: pointer;
 }
 
-body{
+:root {
+  color-scheme: dark;
+}
+
+body {
   font-family: 'Inter', sans-serif;
-  background-color: #0E0E10; /* Optional: setting a default dark background */
+  background-color: #0E0E10;
+  color-scheme: dark;
+}
+
+input[type="date"],
+input[type="month"] {
+  color-scheme: dark;
 }
 
 /* Custom Scrollbar for Dark Theme */

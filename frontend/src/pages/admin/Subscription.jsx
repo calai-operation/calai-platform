@@ -9,8 +9,7 @@ import {
   X,
 } from "lucide-react";
 import Table from "../../components/Table";
-import { useQuery } from "@tanstack/react-query";
-import useAxiosSecure from "../../hooks/useAxiosSecure";
+import { useAdminSubscription } from "../../hooks/useAdminSubscription";
 
 const PlanCard = ({ plan }) => {
   const isPopular = plan.name?.toLowerCase() === "pro" || plan.isPopular;
@@ -76,41 +75,13 @@ const PlanCard = ({ plan }) => {
 };
 
 const Subscription = () => {
-  const axiosSecure = useAxiosSecure();
-
-  const { data: plansResponse, isLoading: isPlansLoading } = useQuery({
-    queryKey: ["plans"],
-    queryFn: async () => {
-      const res = await axiosSecure.get(
-        "/system-owner/subscription-billing/plans",
-      );
-      return res.data;
-    },
-  });
-
-  const plans = [
-    ...(Array.isArray(plansResponse?.data) ? plansResponse.data : []),
-  ].sort((a, b) => {
-    if (a.name?.toLowerCase() === "enterprise") return 1;
-    if (b.name?.toLowerCase() === "enterprise") return -1;
-    return 0;
-  });
-
-  const { data: billingsResponse, isLoading: isBillingsLoading } = useQuery({
-    queryKey: ["billings"],
-    queryFn: async () => {
-      const res = await axiosSecure.get(
-        "/system-owner/subscription-billing/billings",
-      );
-      return res.data;
-    },
-  });
-
-  const billingsData = billingsResponse?.data || {
-    stats: {},
-    recent_invoices: [],
-  };
-  const apiStats = billingsData.stats;
+  const {
+    plans,
+    apiStats,
+    recentInvoices,
+    isPlansLoading,
+    isBillingsLoading,
+  } = useAdminSubscription();
 
   const stats = [
     {
@@ -150,7 +121,12 @@ const Subscription = () => {
     {
       key: "expiry_date",
       Title: "Expiry Date",
-      render: (row) => new Date(row.expiry_date).toLocaleDateString("en-GB"),
+      render: (row) =>
+        row.expiry_date
+          ? new Date(row.expiry_date).toLocaleDateString("en-GB", {
+              timeZone: "Europe/London",
+            })
+          : "N/A",
     },
     {
       key: "status",
@@ -179,7 +155,7 @@ const Subscription = () => {
     // }
   ];
 
-  const tableRows = billingsData.recent_invoices || [];
+  const tableRows = recentInvoices;
 
   return (
     <div>
