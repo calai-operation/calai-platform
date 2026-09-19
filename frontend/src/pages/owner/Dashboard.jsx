@@ -1,8 +1,10 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import CallActivityChart from "../../components/CallActivityChart";
 import OverallPerformanceReport from "../../components/OverallPerformanceReport";
 import { useOwnerDashboard } from "../../hooks/useOwnerDashboard";
+import { formatUKDateTime } from "../../utils/date";
 
 import OwnerLiveActivity from "../../components/OwnerLiveActivity";
 
@@ -94,8 +96,11 @@ export default function Dashboard() {
   const liveCalls = live?.summary?.activeCalls ?? stats?.liveCalls?.value ?? 0;
   const agentsInUse = live?.summary?.agentsInUse ?? stats?.liveCalls?.agentsInUse ?? 0;
 
-  // Printer status
-  const disconnectedPrinter = printers?.find(p => p.status?.toLowerCase() !== "online");
+  // Printer status calculations
+  const totalPrinters = printers?.length || 0;
+  const offlinePrinters = printers?.filter(p => p.status?.toLowerCase() !== "online") || [];
+  const onlinePrinters = printers?.filter(p => p.status?.toLowerCase() === "online") || [];
+  const hasOffline = offlinePrinters.length > 0;
 
   // Safely get today's calls from insights daily array
   const todayCalls = insights?.daily && insights.daily.length > 0 
@@ -198,19 +203,45 @@ export default function Dashboard() {
         live={live} 
       />
 
-      {/* Disconnected Printer Alert */}
-      {disconnectedPrinter && (
-        <div className="bg-[#1E1113] border border-[#381B20] rounded-2xl p-4 mb-6 flex items-center justify-between">
+      {/* Disconnected Printer Warning Banner (Only shown when a printer is offline) */}
+      {hasOffline && (
+        <div className="bg-[#1E1113] border border-[#381B20] rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all">
           <div className="flex items-center gap-4">
-            <Icon icon="lucide:printer" className="text-[#E74C3C] text-2xl" />
+            <div className="w-11 h-11 rounded-xl bg-[#E74C3C]/10 border border-[#E74C3C]/20 flex items-center justify-center flex-shrink-0">
+              <Icon icon="lucide:printer" className="text-[#E74C3C] text-2xl" />
+            </div>
             <div>
-              <h4 className="text-[#E74C3C] font-semibold text-[15px]">Printer not connected</h4>
-              <p className="text-[#E74C3C]/70 text-xs mt-0.5">{disconnectedPrinter.deviceName || disconnectedPrinter.device_name || "Unknown Printer"}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-[#E74C3C] font-semibold text-[15px]">
+                  {offlinePrinters.length === 1 && totalPrinters === 1
+                    ? "Printer not connected"
+                    : `${offlinePrinters.length} of ${totalPrinters} printers not connected`}
+                </h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#E74C3C]/15 text-[#E74C3C] border border-[#E74C3C]/30 uppercase tracking-wide">
+                  Offline
+                </span>
+              </div>
+              <div className="text-[#E74C3C]/80 text-xs mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="font-medium text-white/90">
+                  {offlinePrinters.map(p => p.deviceName || p.device_name || "Unknown Printer").join(", ")}
+                </span>
+                {offlinePrinters[0]?.ipAddress && (
+                  <span className="text-gray-400">
+                    • IP: {offlinePrinters[0].ipAddress}
+                  </span>
+                )}
+                <span className="text-gray-400">
+                  • Last seen: {offlinePrinters[0]?.lastSeen ? formatUKDateTime(offlinePrinters[0].lastSeen) : "Never"}
+                </span>
+              </div>
             </div>
           </div>
-          <a href="/owner/printer" className="text-sm font-medium text-[#E74C3C] hover:underline hover:text-[#E74C3C]/80">
-            Check printer
-          </a>
+          <Link
+            to="/owner/printer"
+            className="text-sm font-medium text-[#E74C3C] hover:underline hover:text-[#E74C3C]/80 flex items-center gap-1.5 flex-shrink-0 self-end sm:self-center"
+          >
+            Check printer <Icon icon="lucide:arrow-up-right" className="text-xs" />
+          </Link>
         </div>
       )}
 

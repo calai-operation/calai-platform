@@ -35,6 +35,7 @@ export const useOwnerDashboard = () => {
       const response = await axiosSecure.get("/business-owner/printer");
       return response.data;
     },
+    refetchInterval: 5000, // Poll every 5 seconds for real-time printer status
   });
 
   const isLoading = isLoadingStats || isLoadingInsights || isLoadingLive || isLoadingPrinters;

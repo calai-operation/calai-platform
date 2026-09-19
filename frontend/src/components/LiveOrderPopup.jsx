@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import Cookies from "js-cookie";
-import { X, BellRing, MapPin, Phone, User, ShoppingBag } from "lucide-react";
+import { X, BellRing, MapPin, Phone, User, ShoppingBag, AlertTriangle, AlertCircle } from "lucide-react";
 import useAuth from "../hooks/useAuth";
 import toast from "react-hot-toast";
 
@@ -78,16 +78,19 @@ const LiveOrderPopup = () => {
     });
 
     // Listen for new order events
-    // (Common event names: 'new-order', 'new_order', 'order')
     const handleNewOrder = (order) => {
       console.log("Live order received:", order);
       setIncomingOrder(order);
     };
 
     socket.on('order:confirmed', handleNewOrder);
+    socket.on('order:unconfirmed', handleNewOrder);
+    socket.on('new-order', handleNewOrder);
 
     return () => {
       socket.off('order:confirmed', handleNewOrder);
+      socket.off('order:unconfirmed', handleNewOrder);
+      socket.off('new-order', handleNewOrder);
       socket.offAny();
       socket.disconnect();
     };
@@ -95,20 +98,35 @@ const LiveOrderPopup = () => {
 
   if (!incomingOrder) return null;
 
+  const isUnconfirmed =
+    incomingOrder.confirmationStatus?.toLowerCase() === "unconfirmed" ||
+    incomingOrder.status?.toLowerCase() === "unconfirmed" ||
+    incomingOrder.isConfirmed === false;
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-      <div className="bg-[#0E0E10] border border-[#272727] shadow-[0_0_40px_rgba(37,99,235,0.15)] rounded-2xl w-full max-w-[500px] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+      <div className={`bg-[#0E0E10] border ${isUnconfirmed ? 'border-amber-600/40 shadow-[0_0_40px_rgba(217,119,6,0.2)]' : 'border-[#272727] shadow-[0_0_40px_rgba(37,99,235,0.15)]'} rounded-2xl w-full max-w-[500px] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300`}>
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-5 relative">
+        <div className={`p-5 relative ${isUnconfirmed ? 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700' : 'bg-gradient-to-r from-blue-600 to-indigo-600'}`}>
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-bl-full -z-10"></div>
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white/20 rounded-full animate-pulse">
-              <BellRing className="w-6 h-6 text-white" />
+              {isUnconfirmed ? (
+                <AlertTriangle className="w-6 h-6 text-white" />
+              ) : (
+                <BellRing className="w-6 h-6 text-white" />
+              )}
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">New Order Received!</h2>
-              {/* <p className="text-blue-100 text-sm">Order #{incomingOrder.id || 'N/A'}</p> */}
+              <h2 className="text-xl font-bold text-white">
+                {isUnconfirmed ? "Unconfirmed order received" : "New Order Received!"}
+              </h2>
+              {isUnconfirmed && (
+                <p className="text-amber-100 text-xs font-medium mt-0.5">
+                  Action required: this order is not yet confirmed
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -116,9 +134,35 @@ const LiveOrderPopup = () => {
         {/* Order Details Body */}
         <div className="p-6 flex-1 max-h-[60vh] overflow-y-auto hide-scrollbar space-y-6">
           
+          {/* Unconfirmed Reason Banner */}
+          {isUnconfirmed && (
+            <div className="bg-[#261706] border border-amber-600/40 p-4 rounded-xl flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-xs space-y-1">
+                <p className="font-semibold text-amber-300 uppercase tracking-wider">
+                  Reason not confirmed
+                </p>
+                <p className="text-amber-200/90 leading-relaxed">
+                  {incomingOrder.unconfirmedReason || "The customer ended or left the call before final confirmation."}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Customer Info */}
           <div className="bg-[#151515] p-4 rounded-xl border border-white/5 space-y-3">
-            <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Customer Details</h3>
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider">Customer Details</h3>
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide uppercase ${
+                  isUnconfirmed
+                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                    : "bg-green-500/20 text-green-400 border border-green-500/40"
+                }`}
+              >
+                {isUnconfirmed ? "Unconfirmed" : "Confirmed"}
+              </span>
+            </div>
             
             <div className="flex items-start gap-3 text-sm">
               <User className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" />
@@ -173,9 +217,13 @@ const LiveOrderPopup = () => {
         <div className="p-5 border-t border-[#272727] bg-[#111111]">
           <button
             onClick={() => setIncomingOrder(null)}
-            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.2)] hover:shadow-[0_0_30px_rgba(37,99,235,0.4)]"
+            className={`w-full py-3.5 text-white font-semibold rounded-xl transition-all ${
+              isUnconfirmed
+                ? "bg-amber-600 hover:bg-amber-700 shadow-[0_0_20px_rgba(217,119,6,0.25)] hover:shadow-[0_0_30px_rgba(217,119,6,0.4)]"
+                : "bg-blue-600 hover:bg-blue-700 shadow-[0_0_20px_rgba(37,99,235,0.2)] hover:shadow-[0_0_30px_rgba(37,99,235,0.4)]"
+            }`}
           >
-            Acknowledge
+            {isUnconfirmed ? "Acknowledge Unconfirmed Order" : "Acknowledge"}
           </button>
         </div>
         
