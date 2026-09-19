@@ -2,25 +2,30 @@ import React, { useState } from 'react';
 import { Icon } from '@iconify/react';
 import TenantUsageTabContent from './TenantUsageTabContent';
 import ProviderCallTable from './ProviderCallTable';
-import { useSystemDashboard } from '../hooks/useSystemDashboard';
+import { useViewTenant } from '../hooks/useViewTenant';
 import StatCard from './StatCard';
+import { getUKToday } from '../utils/date';
 
-const TenantCallUsageSection = ({ tenant }) => {
-  const today = new Date().toISOString().slice(0, 10);
-  const [period, setPeriod] = useState({
-    start: today.slice(0, 7) + "-01",
-    end: today,
-  });
-  
+const TenantCallUsageSection = ({ tenant, viewTenantData }) => {
+  const hookData = useViewTenant(tenant?.id);
+  const data = viewTenantData || hookData || {};
+
   const [reportTab, setReportTab] = useState('usage');
 
-  const { operationsData, liveData, isFetchingOperations, lastUpdated } = useSystemDashboard(period.start, period.end);
+  const today = data.today || getUKToday();
 
-  const tenantDetails = operationsData?.tenants?.find((row) => row.id === tenant.id) || {};
-  const liveTenant = liveData?.tenants?.find((row) => row.id === tenant.id) || {};
-  
-  const calls = (operationsData?.calls || []).filter(row => row.tenantId === tenant.id);
-  const failedCalls = (operationsData?.failedCalls || []).filter(row => row.tenantId === tenant.id);
+  const {
+    period = { start: today.slice(0, 7) + "-01", end: today },
+    setPeriod = () => {},
+    operationsData,
+    liveData,
+    liveTenant = {},
+    isFetchingOperations = false,
+    lastUpdated,
+    tenantDetails = {},
+    calls = [],
+    failedCalls = [],
+  } = data;
 
   const num = (value) =>
     typeof value === "number"
@@ -47,8 +52,8 @@ const TenantCallUsageSection = ({ tenant }) => {
   const formatDate = (date) => {
     if (!date) return "Not recorded";
     return new Date(date).toLocaleString("en-GB", {
-      timeZone: "UTC",
-      day: "2-digit",
+      timeZone: "Europe/London",
+      day: "numeric",
       month: "short",
       year: "numeric",
       hour: "2-digit",
@@ -75,11 +80,12 @@ const TenantCallUsageSection = ({ tenant }) => {
 
       {/* Filter bar */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-[#262626] pb-4">
-        <div className="flex items-center gap-3 bg-[#111111] border border-[#262626] rounded-lg px-3 py-2 text-[13px] text-gray-300">
-          <Icon icon="lucide:calendar-days" className="w-4 h-4 text-gray-500" />
+        <div className="flex items-center gap-3 bg-[#111111] border border-[#262626] rounded-lg px-3 py-2 text-[13px] text-gray-300 [color-scheme:dark]">
+          <Icon icon="lucide:calendar-days" className="w-4 h-4 text-gray-500 shrink-0" />
           <input
             type="date"
-            className="bg-transparent outline-none text-white w-[110px]"
+            className="bg-transparent outline-none text-white w-[115px] cursor-pointer font-medium [color-scheme:dark]"
+            style={{ colorScheme: 'dark' }}
             value={period.start}
             max={period.end}
             onChange={(e) => e.target.value && setPeriod({ ...period, start: e.target.value })}
@@ -87,16 +93,17 @@ const TenantCallUsageSection = ({ tenant }) => {
           <span className="text-gray-500">—</span>
           <input
             type="date"
-            className="bg-transparent outline-none text-white w-[110px]"
+            className="bg-transparent outline-none text-white w-[115px] cursor-pointer font-medium [color-scheme:dark]"
+            style={{ colorScheme: 'dark' }}
             value={period.end}
             min={period.start}
             max={today}
             onChange={(e) => e.target.value && setPeriod({ ...period, end: e.target.value })}
           />
-          <span className="text-gray-500 border-l border-[#333] pl-3 ml-1">UTC</span>
+          
         </div>
         <div className="text-[12px] text-gray-500">
-          Updated {lastUpdated ? formatDate(lastUpdated) : formatDate(new Date())} UTC
+          Updated {lastUpdated ? formatDate(lastUpdated) : formatDate(new Date())}
         </div>
       </div>
 
@@ -111,38 +118,38 @@ const TenantCallUsageSection = ({ tenant }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
         <StatCard
           title="Recorded calls"
-          value={num(tenantDetails.callCount)}
-          subtext={`${num(tenantDetails.minutes)} minutes in this period`}
+          value={num(tenantDetails?.callCount)}
+          subtext={`${num(tenantDetails?.minutes)} minutes in this period`}
           icon="lucide:phone"
         />
         <StatCard
           title="Vapi call costs"
-          value={amounts(tenantDetails.costs?.vapi)}
-          subtext={`${tenantDetails.pendingCosts ?? 0} cost records pending`}
+          value={amounts(tenantDetails?.costs?.vapi)}
+          subtext={`${tenantDetails?.pendingCosts ?? 0} cost records pending`}
           icon="lucide:coins"
         />
         <StatCard
           title="Twilio call charges"
-          value={amounts(tenantDetails.costs?.twilio)}
-          subtext={tenantDetails.twilio ? `${tenantDetails.twilio.legs} matched telephony legs` : "No matching priced call legs"}
+          value={amounts(tenantDetails?.costs?.twilio)}
+          subtext={tenantDetails?.twilio ? `${tenantDetails.twilio.legs} matched telephony legs` : "No matching priced call legs"}
           icon="lucide:coins"
         />
         <StatCard
           title="Concurrent calls"
-          value={num(liveTenant.activeCalls || 0)}
-          subtext={`${num(liveTenant.agentsInUse || 0)} agents in use · live`}
+          value={num(liveTenant?.activeCalls || 0)}
+          subtext={`${num(liveTenant?.agentsInUse || 0)} agents in use · live`}
           icon="lucide:radio"
         />
         <StatCard
           title="Failed calls"
-          value={num(tenantDetails.failures)}
-          subtext={`${num(tenantDetails.failedTwilioLegs)} additional failed Twilio legs`}
+          value={num(tenantDetails?.failures)}
+          subtext={`${num(tenantDetails?.failedTwilioLegs)} additional failed Twilio legs`}
           icon="lucide:activity"
         />
         <StatCard
           title="Call transfers"
-          value={num(tenantDetails.transfers)}
-          subtext={tenantDetails.latencyMs == null ? "Audio latency not available" : `${tenantDetails.latencyMs} ms average first audio`}
+          value={num(tenantDetails?.transfers)}
+          subtext={tenantDetails?.latencyMs == null ? "Audio latency not available" : `${tenantDetails.latencyMs} ms average first audio`}
           icon="lucide:arrow-up-right"
         />
       </div>
@@ -178,7 +185,7 @@ const TenantCallUsageSection = ({ tenant }) => {
           }`}
         >
           Failed calls
-          {failedCalls.length > 0 && (
+          {failedCalls?.length > 0 && (
             <span className="bg-[#381B20] text-[#E74C3C] text-[11px] font-bold px-1.5 py-0.5 rounded-md ml-1">
               {failedCalls.length}
             </span>

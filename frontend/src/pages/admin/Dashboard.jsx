@@ -15,16 +15,17 @@ import FailedCallsTabContent from "../../components/FailedCallsTabContent";
 import PrinterHealthTabContent from "../../components/PrinterHealthTabContent";
 import ProviderCostsTabContent from "../../components/ProviderCostsTabContent";
 
-const Dashboard = () => {
-  const [selectedMonth, setSelectedMonth] = React.useState("2026-09");
-  const [startDate, setStartDate] = React.useState("2026-09-01");
-  const [endDate, setEndDate] = React.useState("2026-09-17");
-  const [activeTab, setActiveTab] = React.useState("overview");
+import { getUKToday, getUKCurrentMonth } from "../../utils/date";
 
-  // Calculate maximum allowed dates (today) in UTC
-  const currentUtcDate = new Date();
-  const maxMonth = `${currentUtcDate.getUTCFullYear()}-${String(currentUtcDate.getUTCMonth() + 1).padStart(2, '0')}`;
-  const maxDate = currentUtcDate.toISOString().split('T')[0];
+const Dashboard = () => {
+  // Calculate maximum allowed dates (today) in UK timezone (Europe/London)
+  const maxDate = getUKToday();
+  const maxMonth = getUKCurrentMonth();
+
+  const [selectedMonth, setSelectedMonth] = React.useState(maxMonth);
+  const [startDate, setStartDate] = React.useState(`${maxMonth}-01`);
+  const [endDate, setEndDate] = React.useState(maxDate);
+  const [activeTab, setActiveTab] = React.useState("overview");
 
   const handleMonthChange = (e) => {
     const newMonth = e.target.value; // "YYYY-MM"
@@ -35,11 +36,10 @@ const Dashboard = () => {
       const firstDay = `${year}-${month}-01`;
       
       // Get the last day of the selected month
-      // month is 1-indexed (e.g. 09), new Date(year, month, 0) gives the last day of that month
-      const lastDayDate = new Date(Date.UTC(year, parseInt(month), 0));
-      let lastDayStr = lastDayDate.toISOString().split('T')[0];
+      const lastDayDate = new Date(parseInt(year, 10), parseInt(month, 10), 0);
+      let lastDayStr = `${year}-${month}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
 
-      // If they select the current month, only show up to today
+      // If they select the current month, only show up to today in UK timezone
       if (newMonth === maxMonth) {
         lastDayStr = maxDate;
       }
@@ -103,7 +103,7 @@ const Dashboard = () => {
     },
     {
       title: "Vapi reported cost",
-      value: `US$${vapiCostUSD.toFixed(3)}`,
+      value: `$${vapiCostUSD.toFixed(3)}`,
       icon: "lucide:link-2",
       subtext: "Selected period · USD",
     },

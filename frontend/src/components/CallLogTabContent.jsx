@@ -2,8 +2,9 @@ import React from 'react';
 import { Icon } from '@iconify/react';
 import Table from './Table';
 import Dropdown from './Dropdown';
+import { UK_TIMEZONE } from '../utils/date';
 
-const CallLogTabContent = ({ calls = [] }) => {
+const CallLogTabContent = ({ calls = [], isLive = true, onSelectTenant, selectedTenant = "All tenants" }) => {
 
 
 
@@ -59,7 +60,7 @@ const CallLogTabContent = ({ calls = [] }) => {
     if (!dateString) return '-';
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return '-';
-    return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}, ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+    return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: UK_TIMEZONE })}, ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: UK_TIMEZONE })}`;
   };
 
   const mappedCalls = calls.map(c => ({

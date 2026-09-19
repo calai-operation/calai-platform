@@ -2,6 +2,7 @@ import React from 'react';
 import { Icon } from '@iconify/react';
 import Table from './Table';
 import Dropdown from './Dropdown';
+import { UK_TIMEZONE } from '../utils/date';
 
 const FailedCallsTabContent = ({ failedCalls = [] }) => {
 
@@ -20,7 +21,7 @@ const FailedCallsTabContent = ({ failedCalls = [] }) => {
     },
     { 
       key: "time", 
-      Title: "TIME (UTC)", 
+      Title: "TIME (UK)", 
       render: (row) => <span className="whitespace-nowrap text-[13px] font-medium text-gray-300">{row.time}</span>
     },
     { 
@@ -59,7 +60,7 @@ const FailedCallsTabContent = ({ failedCalls = [] }) => {
     if (!dateString) return '-';
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return '-';
-    return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}, ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+    return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: UK_TIMEZONE })}, ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: UK_TIMEZONE })}`;
   };
 
   const mappedCalls = failedCalls.map(c => ({

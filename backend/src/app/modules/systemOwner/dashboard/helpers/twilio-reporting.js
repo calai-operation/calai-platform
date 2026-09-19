@@ -13,7 +13,16 @@ export const decimal = (value) =>
 export const round = (value) => Math.round(value * 1e8) / 1e8;
 
 export function reportPeriod(query = {}, now = new Date()) {
-  const today = now.toISOString().slice(0, 10);
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const y = parts.find((p) => p.type === "year")?.value;
+  const m = parts.find((p) => p.type === "month")?.value;
+  const d = parts.find((p) => p.type === "day")?.value;
+  const today = `${y}-${m}-${d}`;
   const start = query.start || today.slice(0, 7) + "-01",
     end = query.end || today;
   for (const value of [start, end])
@@ -38,7 +47,7 @@ export function reportPeriod(query = {}, now = new Date()) {
     end,
     startAt: start + "T00:00:00.000Z",
     endAt: new Date(Date.parse(end) + 86400000).toISOString(),
-    timezone: "UTC",
+    timezone: "Europe/London",
   };
 }
 

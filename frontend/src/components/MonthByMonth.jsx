@@ -7,6 +7,7 @@ import Table from './Table';
 import { useQuery } from '@tanstack/react-query';
 import useAxiosSecure from '../hooks/useAxiosSecure';
 import { downloadCSV, downloadJSON } from '../utils/export';
+import { getUKToday, UK_TIMEZONE } from "../utils/date";
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
 
@@ -41,7 +42,7 @@ const cost = (r) => {
 };
 
 const getMonthPeriods = (yearStr) => {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getUKToday();
   const currentYear = todayStr.slice(0, 4);
   const currentMonth = parseInt(todayStr.slice(5, 7), 10);
   
@@ -56,7 +57,8 @@ const getMonthPeriods = (yearStr) => {
     if (yearStr === currentYear && m === currentMonth) {
       end = todayStr;
     } else {
-      end = new Date(Date.UTC(parseInt(yearStr), m, 0)).toISOString().slice(0, 10);
+      const lastDay = new Date(parseInt(yearStr, 10), m, 0).getDate();
+      end = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
     }
     
     periods.push({ start, end });
@@ -66,8 +68,7 @@ const getMonthPeriods = (yearStr) => {
 };
 
 const MonthByMonth = () => {
-  const currentDate = new Date();
-  const currentYearStr = currentDate.getFullYear().toString();
+  const currentYearStr = getUKToday().slice(0, 4);
   const [selectedYear, setSelectedYear] = useState(currentYearStr);
   const [exportFormat, setExportFormat] = useState("CSV");
   const [progress, setProgress] = useState(0);
@@ -109,7 +110,7 @@ const MonthByMonth = () => {
       
       const label = new Date(r.period.start).toLocaleDateString("en-GB", {
         month: "short",
-        timeZone: "UTC",
+        timeZone: UK_TIMEZONE,
       });
       const monthStr = `${label} ${selectedYear}`;
 

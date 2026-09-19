@@ -3,16 +3,10 @@ import { Icon } from "@iconify/react";
 import InputField from "@/components/Inputfield";
 import Dropdown from "@/components/Dropdown";
 import Table from "@/components/Table";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import useAxiosSecure from "@/hooks/useAxiosSecure";
-import toast from "react-hot-toast";
-
 import React, { useState } from "react";
+import { useTelephony } from "@/hooks/useTelephony";
 
 const Telephony = () => {
-  const axiosSecure = useAxiosSecure();
-  const queryClient = useQueryClient();
-
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -27,118 +21,40 @@ const Telephony = () => {
     vapiAgentId: "",
   });
 
-  const { data: tenantsResponse } = useQuery({
-    queryKey: ["tenants"],
-    queryFn: async () => {
-      const res = await axiosSecure.get("/system-owner/tenants");
-      return res.data;
-    },
-  });
-  const tenants = tenantsResponse?.data || [];
-  const tenantNames = tenants.map(
-    (t) => t.name || t.business_name || "Unknown",
-  );
-
-  const { data: agentsResponse } = useQuery({
-    queryKey: ["unconnected-agents", newNumber.businessId],
-    queryFn: async () => {
-      if (!newNumber.businessId) return { data: [] };
-      try {
-        const res = await axiosSecure.get(
-          `/system-owner/telephony/unconnected-agents/${newNumber.businessId}`,
-        );
-        return res.data;
-      } catch (err) {
-        return { data: [] };
-      }
-    },
-    enabled: !!newNumber.businessId,
-  });
-  const unconnectedAgents = agentsResponse?.data || [];
-  const agentNames = unconnectedAgents.map(
-    (a) => a.name || a.agentName || a.agent_name || "Unnamed Agent",
-  );
-
   const {
-    data: telephonyResponse,
+    tenants,
+    tenantNames,
+    unconnectedAgents,
+    agentNames,
+    numbers,
     isLoading,
     isError,
     error,
-  } = useQuery({
-    queryKey: ["telephony"],
-    queryFn: async () => {
-      const res = await axiosSecure.get("/system-owner/telephony");
-      return res.data;
-    },
-  });
-
-  const numbers = telephonyResponse?.data || [];
-
-  // Add Mutation
-  const addMutation = useMutation({
-    mutationFn: async (data) => {
-      const res = await axiosSecure.post("/system-owner/telephony", data);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["telephony"] });
-      toast.success("Number added successfully");
-      setIsAddModalOpen(false);
-      setNewNumber({
-        businessId: "",
-        twilioNumber: "",
-        managerNumber: "",
-        vapiAgentId: "",
-      });
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || "Failed to add number");
-    },
-  });
-
-  // Update Mutation
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }) => {
-      const res = await axiosSecure.patch(
-        `/system-owner/telephony/${id}`,
-        data,
-      );
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["telephony"] });
-      toast.success("Number updated successfully");
-      setIsEditModalOpen(false);
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || "Failed to update number");
-    },
-  });
-
-  // Delete Mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (id) => {
-      const res = await axiosSecure.delete(`/system-owner/telephony/${id}`);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["telephony"] });
-      toast.success("Number deleted successfully");
-      setIsDeleteModalOpen(false);
-      setDeletingNumberId(null);
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || "Failed to delete number");
-    },
-  });
+    addMutation,
+    updateMutation,
+    deleteMutation,
+  } = useTelephony(newNumber.businessId);
 
   const handleAddNumber = () => {
-    addMutation.mutate({
-      businessId: newNumber.businessId,
-      twilio_number: newNumber.twilioNumber,
-      manager_number: newNumber.managerNumber,
-      assistant_id: newNumber.vapiAgentId,
-    });
+    addMutation.mutate(
+      {
+        businessId: newNumber.businessId,
+        twilio_number: newNumber.twilioNumber,
+        manager_number: newNumber.managerNumber,
+        assistant_id: newNumber.vapiAgentId,
+      },
+      {
+        onSuccess: () => {
+          setIsAddModalOpen(false);
+          setNewNumber({
+            businessId: "",
+            twilioNumber: "",
+            managerNumber: "",
+            vapiAgentId: "",
+          });
+        },
+      }
+    );
   };
 
   const handleEditClick = (number) => {
@@ -148,13 +64,20 @@ const Telephony = () => {
 
   const handleUpdateNumber = () => {
     if (editingNumber) {
-      updateMutation.mutate({
-        id: editingNumber.id,
-        data: {
-          twilio_number: editingNumber.twilioNumber,
-          manager_number: editingNumber.managerNumber,
+      updateMutation.mutate(
+        {
+          id: editingNumber.id,
+          data: {
+            twilio_number: editingNumber.twilioNumber,
+            manager_number: editingNumber.managerNumber,
+          },
         },
-      });
+        {
+          onSuccess: () => {
+            setIsEditModalOpen(false);
+          },
+        }
+      );
     }
   };
 
@@ -165,7 +88,12 @@ const Telephony = () => {
 
   const handleConfirmDelete = () => {
     if (deletingNumberId) {
-      deleteMutation.mutate(deletingNumberId);
+      deleteMutation.mutate(deletingNumberId, {
+        onSuccess: () => {
+          setIsDeleteModalOpen(false);
+          setDeletingNumberId(null);
+        },
+      });
     }
   };
 

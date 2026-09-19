@@ -151,7 +151,9 @@ const PrinterManagement = () => {
       render: (row) => (
         <div className="text-left text-gray-400 text-sm">
           {row.lastSeen
-            ? new Date(row.lastSeen).toLocaleString("en-GB")
+            ? new Date(row.lastSeen).toLocaleString("en-GB", {
+                timeZone: "Europe/London",
+              })
             : "Never"}
         </div>
       ),

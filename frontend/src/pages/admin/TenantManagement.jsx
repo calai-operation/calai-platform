@@ -6,28 +6,19 @@ import Dropdown from "../../components/Dropdown";
 import Password from "../../components/Password";
 import Breadcrumb from "../../components/Breadcrumb";
 import { Link } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import useAxiosSecure from "../../hooks/useAxiosSecure";
+import { useTenantManagement } from "../../hooks/useTenantManagement";
 import toast from "react-hot-toast";
 
 const TenantManagement = () => {
-  const axiosSecure = useAxiosSecure();
-  const queryClient = useQueryClient();
-
   const {
-    data: tenantsResponse,
+    tenants,
     isLoading,
     isError,
     error,
-  } = useQuery({
-    queryKey: ["tenants"],
-    queryFn: async () => {
-      const res = await axiosSecure.get("/system-owner/tenants");
-      return res.data;
-    },
-  });
-
-  const tenants = tenantsResponse?.data || [];
+    addMutation,
+    updateMutation,
+    deleteMutation,
+  } = useTenantManagement();
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState(null);
@@ -45,61 +36,6 @@ const TenantManagement = () => {
     business_type: "restaurent",
   });
 
-  const addMutation = useMutation({
-    mutationFn: async (data) => {
-      const res = await axiosSecure.post("/system-owner/tenants", data);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tenants"] });
-      toast.success("Tenant added successfully");
-      setIsAddModalOpen(false);
-      setNewTenant({
-        first_name: "",
-        last_name: "",
-        email: "",
-        password: "",
-        business_name: "",
-        phone: "",
-        business_type: "restaurent",
-      });
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || "Failed to add tenant");
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }) => {
-      const res = await axiosSecure.patch(`/system-owner/tenants/${id}`, data);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tenants"] });
-      toast.success("Tenant updated successfully");
-      setIsEditModalOpen(false);
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || "Failed to update tenant");
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id) => {
-      const res = await axiosSecure.delete(`/system-owner/tenants/${id}`);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tenants"] });
-      toast.success("Tenant deleted successfully");
-      setIsDeleteModalOpen(false);
-      setDeletingTenantId(null);
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || "Failed to delete tenant");
-    },
-  });
-
   const handleEditClick = (tenant) => {
     setEditingTenant({
       id: tenant.id,
@@ -111,13 +47,20 @@ const TenantManagement = () => {
 
   const handleSaveEdit = () => {
     if (editingTenant) {
-      updateMutation.mutate({
-        id: editingTenant.id,
-        data: {
-          name: editingTenant.name,
-          status: editingTenant.status,
+      updateMutation.mutate(
+        {
+          id: editingTenant.id,
+          data: {
+            name: editingTenant.name,
+            status: editingTenant.status,
+          },
         },
-      });
+        {
+          onSuccess: () => {
+            setIsEditModalOpen(false);
+          },
+        }
+      );
     }
   };
 
@@ -128,13 +71,31 @@ const TenantManagement = () => {
 
   const handleConfirmDelete = () => {
     if (deletingTenantId) {
-      deleteMutation.mutate(deletingTenantId);
+      deleteMutation.mutate(deletingTenantId, {
+        onSuccess: () => {
+          setIsDeleteModalOpen(false);
+          setDeletingTenantId(null);
+        },
+      });
     }
   };
 
   const handleAddTenant = () => {
     if (newTenant.first_name && newTenant.email && newTenant.password) {
-      addMutation.mutate(newTenant);
+      addMutation.mutate(newTenant, {
+        onSuccess: () => {
+          setIsAddModalOpen(false);
+          setNewTenant({
+            first_name: "",
+            last_name: "",
+            email: "",
+            password: "",
+            business_name: "",
+            phone: "",
+            business_type: "restaurent",
+          });
+        },
+      });
     } else {
       toast.error("Please fill all required fields");
     }
@@ -191,7 +152,9 @@ const TenantManagement = () => {
       sortable: true,
       render: (row) => {
         const dateStr = row.expiry_date
-          ? new Date(row.expiry_date).toLocaleDateString("en-GB")
+          ? new Date(row.expiry_date).toLocaleDateString("en-GB", {
+              timeZone: "Europe/London",
+            })
           : "N/A";
         return <div className="text-left text-gray-200">{dateStr}</div>;
       },

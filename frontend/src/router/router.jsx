@@ -6,7 +6,6 @@ import AuthLayout from "../layout/AuthLayout";
 // admin
 import AdminDashboard from "../pages/admin/Dashboard";
 import Settings from "../pages/admin/Settings";
-import ApiKeys from "../pages/admin/ApiKeys";
 import TenantManagement from "../pages/admin/TenantManagement";
 import ViewTenant from "../pages/admin/ViewTenant";
 
@@ -71,7 +70,6 @@ const router = createBrowserRouter([
       { path: "/admin/tenant-management", element: <TenantManagement /> },
       { path: "/admin/tenant-management/view/:id", element: <ViewTenant /> },
       { path: "/admin/subscriptions-billing", element: <Subscription /> },
-      { path: "/admin/api-keys", element: <ApiKeys /> },
       { path: "/admin/settings", element: <Settings /> },
       { path: "/admin/telephony-integration", element: <Telephony /> },
     ],

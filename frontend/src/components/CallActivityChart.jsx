@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
+import { UK_TIMEZONE } from '../utils/date';
 
 const staticData = [
   { name: '01 Sept', calls: 0, failures: 0 },
@@ -42,7 +43,7 @@ const CallActivityChart = ({ calls = [], failedCalls = [], period }) => {
 
       // Pre-fill all dates in range with 0 calls/failures
       for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
-        const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });
+        const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: UK_TIMEZONE });
         map[dateStr] = { name: dateStr, calls: 0, failures: 0, time: d.getTime() };
       }
     } else if (!calls.length && !failedCalls.length) {
@@ -53,7 +54,7 @@ const CallActivityChart = ({ calls = [], failedCalls = [], period }) => {
       arr.forEach(c => {
         const d = new Date(c.startedAt || c.createdAt);
         if (isNaN(d.getTime())) return;
-        const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });
+        const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: UK_TIMEZONE });
         
         if (!map[dateStr]) {
           map[dateStr] = { name: dateStr, calls: 0, failures: 0, time: d.getTime() };

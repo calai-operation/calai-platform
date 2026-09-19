@@ -369,7 +369,7 @@ export async function getOwnerInsights(
 
   return {
     generatedAt: new Date(now).toISOString(),
-    timezone: "UTC",
+    timezone: "Europe/London",
     orders: {
       total: orders._count._all,
       today: todayOrders,
