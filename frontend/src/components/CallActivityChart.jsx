@@ -1,18 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { UK_TIMEZONE } from '../utils/date';
-
-const staticData = [
-  { name: '01 Sept', calls: 0, failures: 0 },
-  { name: '03 Sept', calls: 2, failures: 0 },
-  { name: '05 Sept', calls: 0, failures: 0 },
-  { name: '07 Sept', calls: 9, failures: 4 },
-  { name: '09 Sept', calls: 31, failures: 2 },
-  { name: '11 Sept', calls: 8, failures: 1 },
-  { name: '13 Sept', calls: 0, failures: 0 },
-  { name: '15 Sept', calls: 0, failures: 0 },
-  { name: '17 Sept', calls: 0, failures: 0 },
-];
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -31,8 +19,32 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-const CallActivityChart = ({ calls = [], failedCalls = [], period }) => {
+const CallActivityChart = ({ calls = [], failedCalls = [], period, daily = [], weekly = [] }) => {
+  const [viewMode, setViewMode] = useState('daily'); // 'daily' | 'weekly'
+
   const data = useMemo(() => {
+    // 1. If daily or weekly series is passed (Owner Dashboard)
+    const series = viewMode === 'weekly' ? (weekly?.length ? weekly : daily) : daily;
+    if (series && series.length > 0) {
+      return series.map((row) => {
+        const d = new Date(row.date);
+        let name = row.date;
+        if (!isNaN(d.getTime())) {
+          name = d.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            timeZone: UK_TIMEZONE,
+          });
+        }
+        return {
+          name,
+          calls: Number(row.calls) || 0,
+          failures: Number(row.failed ?? row.failures ?? 0),
+        };
+      });
+    }
+
+    // 2. If raw calls and failedCalls are passed (OverviewTabContent / System Owner)
     const map = {};
 
     if (period?.start && period?.end) {
@@ -46,12 +58,10 @@ const CallActivityChart = ({ calls = [], failedCalls = [], period }) => {
         const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: UK_TIMEZONE });
         map[dateStr] = { name: dateStr, calls: 0, failures: 0, time: d.getTime() };
       }
-    } else if (!calls.length && !failedCalls.length) {
-      return staticData;
     }
 
     const process = (arr, isFailure) => {
-      arr.forEach(c => {
+      (arr || []).forEach(c => {
         const d = new Date(c.startedAt || c.createdAt);
         if (isNaN(d.getTime())) return;
         const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: UK_TIMEZONE });
@@ -69,24 +79,67 @@ const CallActivityChart = ({ calls = [], failedCalls = [], period }) => {
     process(failedCalls, true);
     
     const sortedDates = Object.values(map).sort((a, b) => a.time - b.time);
-    return sortedDates.length > 0 ? sortedDates : staticData;
-  }, [calls, failedCalls, period]);
+    if (sortedDates.length > 0) return sortedDates;
+
+    // 3. Clean real fallback (last 7 days with 0 calls - no fake dummy numbers!)
+    const fallback = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: UK_TIMEZONE });
+      fallback.push({ name: dateStr, calls: 0, failures: 0 });
+    }
+    return fallback;
+  }, [daily, weekly, viewMode, calls, failedCalls, period]);
   
   return (
     <div className="bg-[#161616] border border-[#262626] rounded-xl p-6 h-full flex flex-col">
-      <div className="flex justify-between items-start mb-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
           <h2 className="text-[18px] font-semibold text-white mb-1">Call activity</h2>
           <p className="text-[13px] text-gray-400">Your call volume over the selected period</p>
         </div>
-        <div className="flex items-center gap-4 text-[11px] text-gray-400 mt-1">
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#3b82f6]"></div>
-            <span>Calls</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#f87171]"></div>
-            <span>Failures</span>
+
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* Daily / Weekly toggle if both exist */}
+          {daily?.length > 0 && weekly?.length > 0 && (
+            <div className="flex items-center bg-[#111111] p-0.5 rounded-lg border border-[#262626] text-xs">
+              <button
+                type="button"
+                onClick={() => setViewMode('daily')}
+                className={`px-3 py-1 rounded-md font-medium transition-all ${
+                  viewMode === 'daily'
+                    ? 'bg-[#2563EB] text-white shadow'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Daily
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('weekly')}
+                className={`px-3 py-1 rounded-md font-medium transition-all ${
+                  viewMode === 'weekly'
+                    ? 'bg-[#2563EB] text-white shadow'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Weekly
+              </button>
+            </div>
+          )}
+
+          {/* Legend */}
+          <div className="flex items-center gap-4 text-[11px] text-gray-400">
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#3b82f6]"></div>
+              <span>Calls</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#f87171]"></div>
+              <span>Failures</span>
+            </div>
           </div>
         </div>
       </div>
@@ -113,7 +166,8 @@ const CallActivityChart = ({ calls = [], failedCalls = [], period }) => {
               axisLine={false} 
               tickLine={false} 
               tick={{ fill: '#6b7280', fontSize: 11 }} 
-              ticks={[0, 8, 16, 24, 32]}
+              allowDecimals={false}
+              domain={[0, 'auto']}
               dx={-10}
             />
             <Tooltip 
