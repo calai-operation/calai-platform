@@ -86,7 +86,7 @@ When the caller hangs up, Twilio hits this Status Callback URL.
 3. Copy `.env.example` to `.env` and fill in your keys:
    ```env
    OPENAI_API_KEY=your_key_here
-   LLM_MODEL=gpt-5.4-mini-2026-03-17
+   LLM_MODEL=gpt-5.6-terra
    ```
 4. Start the FastAPI server:
    ```bash

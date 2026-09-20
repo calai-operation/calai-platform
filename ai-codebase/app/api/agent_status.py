@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from app.business_store import get_business_config, save_business_config, load_all_business_configs
-from app.vapi_client import set_phone_ringing_hook, clear_phone_ringing_hook, get_phone_number_details
+from app.storage.business_store import get_business_config, save_business_config, load_all_business_configs
+from app.services.vapi_service import set_phone_ringing_hook, clear_phone_ringing_hook, get_phone_number_details
 
 router = APIRouter(prefix="/api", tags=["Agent Status Control"])
 
