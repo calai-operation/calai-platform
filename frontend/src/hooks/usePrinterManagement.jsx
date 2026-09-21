@@ -106,6 +106,9 @@ export const usePrinterManagement = () => {
     addPrinter: addPrinterMutation.mutate,
     editPrinter: editPrinterMutation.mutate,
     deletePrinter: deletePrinterMutation.mutate,
+    addPrinterMutation,
+    editPrinterMutation,
+    deletePrinterMutation,
     downloadBridge,
   };
 };

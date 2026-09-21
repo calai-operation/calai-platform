@@ -14,6 +14,9 @@ const PrinterManagement = () => {
     editPrinter,
     deletePrinter,
     downloadBridge,
+    addPrinterMutation,
+    editPrinterMutation,
+    deletePrinterMutation,
   } = usePrinterManagement();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
