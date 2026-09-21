@@ -72,6 +72,9 @@ const getTenantOrdersFromDB = async (businessId) => {
     return {
       id: order.id,
       callId: order.callId,
+      confirmationStatus: order.confirmationStatus,
+      unconfirmedReason: order.unconfirmedReason,
+      createdAt: order.createdAt,
       customerName: order.customerName,
       time: format(createdAt, "h:mm a"),
       date: format(createdAt, "dd/MM/yyyy"),

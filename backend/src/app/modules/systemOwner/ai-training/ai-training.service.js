@@ -9,6 +9,7 @@ import { SubscriptionService } from "../../businessowner/subscription/subscripti
 import DevBuildError from "../../../lib/DevBuildError.js";
 import { StatusCodes } from "http-status-codes";
 import { registerUnconfirmedAssistant } from "../../webhook/unconfirmed-order.js";
+import { syncBusinessAgentStatus } from "../../../utils/workingHoursScheduler.js";
 
 const createAgent = async (
   agentName,
@@ -203,6 +204,16 @@ const createAgent = async (
 
       return { agent, session, aiResponse: aiData };
     });
+
+    // Immediately sync working hours and Vapi assistant state for the new agent
+    try {
+      await syncBusinessAgentStatus(businessId);
+    } catch (syncErr) {
+      console.warn(
+        "⚠️ Failed to sync initial working hours for new agent:",
+        syncErr.message,
+      );
+    }
 
     return result;
   } catch (error) {
