@@ -2,17 +2,25 @@ import React, { useMemo, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { UK_TIMEZONE } from '../utils/date';
 
-const CustomTooltip = ({ active, payload, label }) => {
+const CustomTooltip = ({ active, payload, label, metric }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-[#1e2330] border border-[#2e3646] p-3 rounded-xl shadow-lg min-w-[120px]">
+      <div className="bg-[#1e2330] border border-[#2e3646] p-3 rounded-xl shadow-lg min-w-[130px]">
         <p className="text-[14px] font-semibold text-white mb-2">{label}</p>
-        <p className="text-[14px] text-[#5e8cf2] mb-1">
-          calls : {payload[0]?.value || 0}
-        </p>
-        <p className="text-[14px] text-[#e3716a]">
-          failed : {payload[1]?.value || 0}
-        </p>
+        {metric === 'minutes' ? (
+          <p className="text-[14px] text-[#5e8cf2]">
+            duration : {payload[0]?.value ?? 0} min
+          </p>
+        ) : (
+          <>
+            <p className="text-[14px] text-[#5e8cf2] mb-1">
+              calls : {payload[0]?.value || 0}
+            </p>
+            <p className="text-[14px] text-[#e3716a]">
+              failed : {payload[1]?.value || 0}
+            </p>
+          </>
+        )}
       </div>
     );
   }
@@ -20,6 +28,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const CallActivityChart = ({ calls = [], failedCalls = [], period, daily = [], weekly = [] }) => {
+  const [metric, setMetric] = useState('calls'); // 'calls' | 'minutes'
   const [viewMode, setViewMode] = useState('daily'); // 'daily' | 'weekly'
 
   const data = useMemo(() => {
@@ -40,6 +49,7 @@ const CallActivityChart = ({ calls = [], failedCalls = [], period, daily = [], w
           name,
           calls: Number(row.calls) || 0,
           failures: Number(row.failed ?? row.failures ?? 0),
+          minutes: Math.round((Number(row.minutes) || 0) * 10) / 10,
         };
       });
     }
@@ -53,10 +63,10 @@ const CallActivityChart = ({ calls = [], failedCalls = [], period, daily = [], w
       startDate.setUTCHours(0, 0, 0, 0);
       endDate.setUTCHours(0, 0, 0, 0);
 
-      // Pre-fill all dates in range with 0 calls/failures
+      // Pre-fill all dates in range with 0 calls/failures/minutes
       for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
         const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: UK_TIMEZONE });
-        map[dateStr] = { name: dateStr, calls: 0, failures: 0, time: d.getTime() };
+        map[dateStr] = { name: dateStr, calls: 0, failures: 0, minutes: 0, time: d.getTime() };
       }
     }
 
@@ -67,28 +77,39 @@ const CallActivityChart = ({ calls = [], failedCalls = [], period, daily = [], w
         const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: UK_TIMEZONE });
         
         if (!map[dateStr]) {
-          map[dateStr] = { name: dateStr, calls: 0, failures: 0, time: d.getTime() };
+          map[dateStr] = { name: dateStr, calls: 0, failures: 0, minutes: 0, time: d.getTime() };
         }
         
-        if (isFailure) map[dateStr].failures += 1;
-        else map[dateStr].calls += 1;
+        if (isFailure) {
+          map[dateStr].failures += 1;
+        } else {
+          map[dateStr].calls += 1;
+          const durationSeconds = Number(c.duration || c.durationSeconds || 0);
+          map[dateStr].minutes += durationSeconds / 60;
+        }
       });
     };
     
     process(calls, false);
     process(failedCalls, true);
     
-    const sortedDates = Object.values(map).sort((a, b) => a.time - b.time);
+    const sortedDates = Object.values(map)
+      .sort((a, b) => a.time - b.time)
+      .map(item => ({
+        ...item,
+        minutes: Math.round(item.minutes * 10) / 10,
+      }));
+
     if (sortedDates.length > 0) return sortedDates;
 
-    // 3. Clean real fallback (last 7 days with 0 calls - no fake dummy numbers!)
+    // 3. Clean fallback (last 7 days with 0 calls)
     const fallback = [];
     const now = new Date();
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
       const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: UK_TIMEZONE });
-      fallback.push({ name: dateStr, calls: 0, failures: 0 });
+      fallback.push({ name: dateStr, calls: 0, failures: 0, minutes: 0 });
     }
     return fallback;
   }, [daily, weekly, viewMode, calls, failedCalls, period]);
@@ -97,12 +118,44 @@ const CallActivityChart = ({ calls = [], failedCalls = [], period, daily = [], w
     <div className="bg-[#161616] border border-[#262626] rounded-xl p-6 h-full flex flex-col">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
-          <h2 className="text-[18px] font-semibold text-white mb-1">Call activity</h2>
-          <p className="text-[13px] text-gray-400">Your call volume over the selected period</p>
+          <h2 className="text-[18px] font-semibold text-white mb-1">
+            {metric === 'minutes' ? 'Call minutes' : 'Call activity'}
+          </h2>
+          <p className="text-[13px] text-gray-400">
+            {metric === 'minutes'
+              ? 'Your total call duration (minutes) over the selected period'
+              : 'Your call volume over the selected period'}
+          </p>
         </div>
 
-        <div className="flex items-center gap-4 flex-wrap">
-          {/* Daily / Weekly toggle if both exist */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Calls / Minutes Metric Toggle */}
+          <div className="flex items-center bg-[#111111] p-0.5 rounded-lg border border-[#262626] text-xs">
+            <button
+              type="button"
+              onClick={() => setMetric('calls')}
+              className={`px-3 py-1 rounded-md font-medium transition-all ${
+                metric === 'calls'
+                  ? 'bg-[#2563EB] text-white shadow'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Calls
+            </button>
+            <button
+              type="button"
+              onClick={() => setMetric('minutes')}
+              className={`px-3 py-1 rounded-md font-medium transition-all ${
+                metric === 'minutes'
+                  ? 'bg-[#2563EB] text-white shadow'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Minutes
+            </button>
+          </div>
+
+          {/* Daily / Weekly Timeframe Toggle */}
           {daily?.length > 0 && weekly?.length > 0 && (
             <div className="flex items-center bg-[#111111] p-0.5 rounded-lg border border-[#262626] text-xs">
               <button
@@ -132,14 +185,23 @@ const CallActivityChart = ({ calls = [], failedCalls = [], period, daily = [], w
 
           {/* Legend */}
           <div className="flex items-center gap-4 text-[11px] text-gray-400">
-            <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#3b82f6]"></div>
-              <span>Calls</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#f87171]"></div>
-              <span>Failures</span>
-            </div>
+            {metric === 'calls' ? (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#3b82f6]"></div>
+                  <span>Calls</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#f87171]"></div>
+                  <span>Failures</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#3b82f6]"></div>
+                <span>Minutes</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -166,30 +228,44 @@ const CallActivityChart = ({ calls = [], failedCalls = [], period, daily = [], w
               axisLine={false} 
               tickLine={false} 
               tick={{ fill: '#6b7280', fontSize: 11 }} 
-              allowDecimals={false}
+              allowDecimals={metric === 'minutes'}
               domain={[0, 'auto']}
               dx={-10}
+              tickFormatter={metric === 'minutes' ? (val) => `${val}m` : undefined}
             />
             <Tooltip 
-              content={<CustomTooltip />}
+              content={<CustomTooltip metric={metric} />}
               cursor={{ stroke: '#fff', strokeWidth: 1.5, opacity: 0.8 }}
             />
-            <Area 
-              type="monotone" 
-              dataKey="calls" 
-              stroke="#3b82f6" 
-              strokeWidth={2}
-              fillOpacity={1} 
-              fill="url(#colorCalls)" 
-            />
-            <Area 
-              type="monotone" 
-              dataKey="failures" 
-              stroke="#f87171" 
-              strokeWidth={1.5}
-              fillOpacity={0} 
-              fill="none" 
-            />
+            {metric === 'calls' ? (
+              <>
+                <Area 
+                  type="monotone" 
+                  dataKey="calls" 
+                  stroke="#3b82f6" 
+                  strokeWidth={2}
+                  fillOpacity={1} 
+                  fill="url(#colorCalls)" 
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="failures" 
+                  stroke="#f87171" 
+                  strokeWidth={1.5}
+                  fillOpacity={0} 
+                  fill="none" 
+                />
+              </>
+            ) : (
+              <Area 
+                type="monotone" 
+                dataKey="minutes" 
+                stroke="#3b82f6" 
+                strokeWidth={2}
+                fillOpacity={1} 
+                fill="url(#colorCalls)" 
+              />
+            )}
           </AreaChart>
         </ResponsiveContainer>
       </div>
