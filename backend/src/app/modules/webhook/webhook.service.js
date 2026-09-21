@@ -9,6 +9,7 @@ import {
   saveUnconfirmedOrder,
 } from "./unconfirmed-order.js";
 import { generateReceiptText } from "../businessowner/printer/printer.service.js";
+import { isBusinessCurrentlyOpen } from "../../utils/business-hours.js";
 
 import { validateOrderConfirmation } from "./helpers/order-validator.js";
 import {
@@ -69,7 +70,13 @@ export const findAgentByAssistantId = async (prismaClient, assistantId) => {
   }
   return await prismaClient.agent.findFirst({
     where: { OR: conditions },
-    include: { business: true },
+    include: {
+      business: {
+        include: {
+          businessSettings: true,
+        },
+      },
+    },
   });
 };
 
@@ -124,6 +131,42 @@ const processVapiWebhook = async (payload) => {
                 role: "system",
                 content:
                   "You are an automated message receptionist. You must politely inform the caller: 'This business has run out of calling minutes. Please upgrade your subscription to resume calls. Goodbye.' and then immediately hang up.",
+              },
+            ],
+          },
+        },
+      };
+    }
+
+    // 2. Intercept assistant-request to check business hours
+    const businessSettings = agent.business?.businessSettings;
+    const isCurrentlyOpen = isBusinessCurrentlyOpen(businessSettings);
+
+    if (!isCurrentlyOpen) {
+      const businessName = agent.business?.name || "the restaurant";
+      const openingTime = businessSettings?.openingTime;
+      const closingTime = businessSettings?.closingTime;
+      let hoursInfo = "";
+      if (openingTime && closingTime) {
+        hoursInfo = ` Our regular business hours are from ${openingTime} to ${closingTime}.`;
+      }
+
+      console.log(
+        `⏰ Call Blocked: Business ${businessName} (${agent.businessId}) is currently CLOSED.${hoursInfo}`,
+      );
+
+      return {
+        isAssistantRequestResponse: true,
+        assistant: {
+          name: "Business Closed",
+          firstMessage: `Thank you for calling ${businessName}. We are currently closed.${hoursInfo} Please call us back during our business hours. Goodbye.`,
+          model: {
+            provider: "openai",
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: `You are an automated receptionist for ${businessName}. You must politely inform the caller: 'Thank you for calling ${businessName}. We are currently closed.${hoursInfo} Please call back during our regular business hours. Goodbye.' and then immediately hang up.`,
               },
             ],
           },
@@ -228,6 +271,19 @@ const processVapiWebhook = async (payload) => {
       return {
         success: false,
         message: `No agent found in database for assistantId: ${assistantId}`,
+      };
+    }
+
+    // Business hours gate for direct orders
+    const directOrderSettings = agent.business?.businessSettings;
+    if (!isBusinessCurrentlyOpen(directOrderSettings)) {
+      console.warn(
+        `⚠️ [Direct-Order] Order rejected: Business ${agent.businessId} is currently CLOSED`,
+      );
+      return {
+        success: false,
+        message:
+          "The restaurant is currently closed. Orders cannot be accepted outside business hours.",
       };
     }
 
@@ -405,6 +461,26 @@ const processVapiWebhook = async (payload) => {
       );
 
       if (funcName.toLowerCase().includes("order")) {
+        // Business hours gate for tool calls
+        const toolCallSettings = agent.business?.businessSettings;
+        if (!isBusinessCurrentlyOpen(toolCallSettings)) {
+          console.warn(
+            `⚠️ Tool Call [${funcName}] Rejected: Business ${businessId} is currently CLOSED`,
+          );
+          results.push({
+            toolCallId: toolCall.id,
+            result: {
+              success: false,
+              error: "BUSINESS_CLOSED",
+              message:
+                "The restaurant is currently closed. No orders can be placed at this time.",
+              instruction:
+                "Politely inform the customer that the restaurant is currently closed and cannot take orders right now. Advise them to call back during regular business hours, then say goodbye and end the call.",
+            },
+          });
+          continue;
+        }
+
         const validation = validateOrderConfirmation(args, "tool_call");
 
         if (!validation.isValid) {
