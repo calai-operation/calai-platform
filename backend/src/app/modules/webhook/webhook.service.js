@@ -32,6 +32,47 @@ const sendOrderConfirmationEmail = createOrderEmailSender({
   sendEmail,
 });
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const isUuid = (val) =>
+  typeof val === "string" && UUID_REGEX.test(val.trim());
+
+/**
+ * Safely extracts assistantId, ignoring any un-interpolated template strings like "{{assistant.id}}"
+ */
+export const extractCleanAssistantId = (...sources) => {
+  for (const src of sources) {
+    if (typeof src === "string") {
+      const trimmed = src.trim();
+      if (
+        trimmed.length > 0 &&
+        !trimmed.includes("{") &&
+        !trimmed.includes("}")
+      ) {
+        return trimmed;
+      }
+    }
+  }
+  return null;
+};
+
+/**
+ * Safely looks up an agent by assistantId or agent ID without throwing Postgres UUID cast errors
+ */
+export const findAgentByAssistantId = async (prismaClient, assistantId) => {
+  if (!assistantId) return null;
+  const cleanId = String(assistantId).trim();
+  const conditions = [{ vapiAgentId: cleanId }];
+  if (isUuid(cleanId)) {
+    conditions.push({ id: cleanId });
+  }
+  return await prismaClient.agent.findFirst({
+    where: { OR: conditions },
+    include: { business: true },
+  });
+};
+
 /**
  * Process Vapi Webhook
  * @param {Object} payload - The webhook payload from Vapi
@@ -41,26 +82,22 @@ const processVapiWebhook = async (payload) => {
 
   // Intercept assistant-request to check plan limits
   if (message?.type === "assistant-request") {
-    const assistantId =
-      message.assistantId ||
-      payload.assistantId ||
-      payload.vapiAgentId ||
-      payload.agentId ||
-      payload.assistant?.id;
+    const assistantId = extractCleanAssistantId(
+      message.assistantId,
+      payload.assistantId,
+      payload.vapiAgentId,
+      payload.agentId,
+      payload.assistant?.id,
+    );
 
     if (!assistantId) {
       console.error(
-        "❌ Webhook Error: No assistantId found in assistant-request payload",
+        "❌ Webhook Error: No valid assistantId found in assistant-request payload",
       );
       return { success: false, message: "No assistantId provided" };
     }
 
-    const agent = await prisma.agent.findFirst({
-      where: {
-        OR: [{ vapiAgentId: assistantId }, { id: assistantId }],
-      },
-      include: { business: true },
-    });
+    const agent = await findAgentByAssistantId(prisma, assistantId);
 
     if (!agent) {
       console.error(`❌ Webhook Error: Agent not found for ID: ${assistantId}`);
@@ -118,23 +155,70 @@ const processVapiWebhook = async (payload) => {
       };
     }
 
-    const assistantId =
-      payload.assistantId ||
-      payload.vapiAgentId ||
-      payload.assistant_id ||
-      payload.assistant?.id ||
-      payload.call?.assistantId ||
-      payload.call?.assistant_id ||
-      payload.agentId;
+    const assistantId = extractCleanAssistantId(
+      payload.call?.assistantId,
+      payload.call?.assistant_id,
+      payload.assistant?.id,
+      payload.assistantId,
+      payload.vapiAgentId,
+      payload.assistant_id,
+      payload.agentId,
+    );
 
-    let agent = null;
-    if (assistantId) {
-      agent = await prisma.agent.findFirst({
-        where: {
-          OR: [{ vapiAgentId: assistantId }, { id: assistantId }],
-        },
+    let vapiCallId = extractCleanAssistantId(
+      payload.callId,
+      payload.vapiCallId,
+      payload.call?.id,
+      payload.call?.vapiCallId,
+    );
+
+    let agent = await findAgentByAssistantId(prisma, assistantId);
+
+    // Fallback 1: If assistantId was null or un-interpolated, try to find agent via callId
+    if (!agent && vapiCallId) {
+      const existingCall = await prisma.call.findFirst({
+        where: { vapiCallId },
         include: { business: true },
       });
+      if (existingCall) {
+        agent = await prisma.agent.findFirst({
+          where: {
+            businessId: existingCall.businessId,
+            status: "active",
+          },
+          include: { business: true },
+        });
+      }
+    }
+
+    // Fallback 2: Try to find recent call by customer_phone
+    if (!agent) {
+      const customerPhone =
+        payload.customer_phone ||
+        payload.phone ||
+        payload.call?.customer?.number;
+      if (customerPhone) {
+        const recentCall = await prisma.call.findFirst({
+          where: {
+            customerNumber: customerPhone,
+            startTime: { gte: new Date(Date.now() - 15 * 60 * 1000) },
+          },
+          include: { business: true },
+          orderBy: { startTime: "desc" },
+        });
+        if (recentCall) {
+          agent = await prisma.agent.findFirst({
+            where: {
+              businessId: recentCall.businessId,
+              status: "active",
+            },
+            include: { business: true },
+          });
+          if (agent && !vapiCallId) {
+            vapiCallId = recentCall.vapiCallId;
+          }
+        }
+      }
     }
 
     if (!agent) {
@@ -146,12 +230,6 @@ const processVapiWebhook = async (payload) => {
         message: `No agent found in database for assistantId: ${assistantId}`,
       };
     }
-
-    let vapiCallId =
-      payload.callId ||
-      payload.vapiCallId ||
-      payload.call?.id ||
-      payload.call?.vapiCallId;
 
     if (!vapiCallId) {
       const customerPhone =
@@ -199,7 +277,7 @@ const processVapiWebhook = async (payload) => {
           payload.phone ||
           payload.call?.customer?.number ||
           undefined,
-        vapiAgentId: assistantId || undefined,
+        vapiAgentId: assistantId || agent.vapiAgentId || undefined,
       },
       create: {
         vapiCallId: vapiCallId,
@@ -215,7 +293,7 @@ const processVapiWebhook = async (payload) => {
           "N/A",
         type: "ai_call",
         status: "completed",
-        vapiAgentId: assistantId || null,
+        vapiAgentId: assistantId || agent.vapiAgentId || null,
       },
     });
 
@@ -235,22 +313,19 @@ const processVapiWebhook = async (payload) => {
     const vapiCall = message.call || payload.call;
     const vapiCallId = vapiCall?.id || "N/A";
 
-    const assistantId =
-      vapiCall?.assistantId ||
-      vapiCall?.assistant_id ||
-      message.assistantId ||
-      payload.agentId ||
-      payload.vapiAgentId;
+    const assistantId = extractCleanAssistantId(
+      vapiCall?.assistantId,
+      vapiCall?.assistant_id,
+      message.assistantId,
+      payload.call?.assistantId,
+      payload.call?.assistant_id,
+      payload.assistant?.id,
+      payload.agentId,
+      payload.vapiAgentId,
+      payload.assistantId,
+    );
 
-    let agent = null;
-    if (assistantId) {
-      agent = await prisma.agent.findFirst({
-        where: {
-          OR: [{ vapiAgentId: assistantId }, { id: assistantId }],
-        },
-        include: { business: true },
-      });
-    }
+    const agent = await findAgentByAssistantId(prisma, assistantId);
 
     if (!agent) {
       console.error(
@@ -397,23 +472,18 @@ const processVapiWebhook = async (payload) => {
   }
 
   const vapiCallId = vapiCall.id;
-  const assistantId =
-    vapiCall.assistantId ||
-    vapiCall.assistant_id ||
-    message.assistantId ||
-    payload.agentId ||
-    payload.vapiAgentId;
+  const assistantId = extractCleanAssistantId(
+    vapiCall.assistantId,
+    vapiCall.assistant_id,
+    message.assistantId,
+    payload.call?.assistantId,
+    payload.call?.assistant_id,
+    payload.assistant?.id,
+    payload.agentId,
+    payload.vapiAgentId,
+  );
 
-  // Find the business linked to this assistant
-  let agent = null;
-  if (assistantId) {
-    agent = await prisma.agent.findFirst({
-      where: {
-        OR: [{ vapiAgentId: assistantId }, { id: assistantId }],
-      },
-      include: { business: true },
-    });
-  }
+  const agent = await findAgentByAssistantId(prisma, assistantId);
 
   if (!agent) {
     console.error(
@@ -495,15 +565,18 @@ const processVapiWebhook = async (payload) => {
 
   // 3. Sync Order (If structured data exists)
   const structuredData = analysis?.structuredData;
-  const pilot = UNCONFIRMED_ASSISTANTS.has(assistantId);
-  const existingPilotOrder = pilot
+  const isUnconfirmedEnabled =
+    Boolean(agent) || UNCONFIRMED_ASSISTANTS.has(assistantId);
+  const existingPilotOrder = isUnconfirmedEnabled
     ? await prisma.order.findUnique({ where: { callId: call.id } })
     : null;
   const candidate =
     message.type === "end-of-call-report"
-      ? unconfirmedCandidate(assistantId, structuredData, vapiCall)
+      ? unconfirmedCandidate(assistantId, structuredData, vapiCall, {
+          allowAll: isUnconfirmedEnabled,
+        })
       : null;
-  if (pilot && candidate && !existingPilotOrder) {
+  if (isUnconfirmedEnabled && candidate && !existingPilotOrder) {
     const created = await saveUnconfirmedOrder({
       prisma,
       call,
@@ -516,11 +589,10 @@ const processVapiWebhook = async (payload) => {
     }
   }
 
-  // Preserve saved orders; incomplete analysis must never delete a confirmed pilot order.
-  // Non-pilot assistants keep their existing confirmation workflow.
+  // Preserve saved orders; incomplete analysis must never delete a confirmed order.
   if (
     structuredData &&
-    (!pilot ||
+    (!isUnconfirmedEnabled ||
       (message.type === "end-of-call-report" &&
         !existingPilotOrder &&
         !candidate &&

@@ -11,6 +11,7 @@ import cron from "node-cron";
 import { runDatabaseCleanup } from "./app/utils/cleanup.js";
 import { initWorkingHoursScheduler } from "./app/utils/workingHoursScheduler.js";
 import { initPilotCallReconciler } from "./app/utils/pilotCallReconciler.js";
+import { syncRegisteredAssistants } from "./app/modules/webhook/unconfirmed-order.js";
 
 let server;
 
@@ -41,6 +42,9 @@ const startServer = async () => {
 
     // Start working hours AI agent scheduler
     initWorkingHoursScheduler();
+
+    // Sync all existing agents from database into unconfirmed order tracker
+    await syncRegisteredAssistants(prisma);
 
     // Recover pilot end-of-call reports if Vapi delivery is delayed or missed.
     initPilotCallReconciler();

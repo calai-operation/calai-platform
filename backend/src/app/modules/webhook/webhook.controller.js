@@ -7,7 +7,7 @@ import { StatusCodes } from "http-status-codes";
  */
 const handleVapiWebhook = async (req, res, next) => {
   try {
-    const payload = req.body;
+    const payload = { ...(req.query || {}), ...(req.body || {}) };
 
     const result = await WebhookService.processVapiWebhook(payload);
 

@@ -58,6 +58,7 @@ export function scheduleAutoSelfHeal({
             assistantId,
             vapiCallData.analysis?.structuredData,
             vapiCallData,
+            { allowAll: true },
           );
           if (recovered && messageType === "end-of-call-report") {
             const created = await saveUnconfirmedOrder({
