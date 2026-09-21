@@ -5,5 +5,6 @@ const router = express.Router();
 
 // Vapi Webhook Endpoint
 router.post("/vapi", WebhookController.handleVapiWebhook);
+router.post("/vapi/card-payment-transfer", WebhookController.handleVapiWebhook);
 
 export const WebhookRouter = router;

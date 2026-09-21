@@ -8,6 +8,7 @@ import { parseMenuFile } from "../../../utils/menuParser.js";
 import { SubscriptionService } from "../../businessowner/subscription/subscription.service.js";
 import DevBuildError from "../../../lib/DevBuildError.js";
 import { StatusCodes } from "http-status-codes";
+import { registerUnconfirmedAssistant } from "../../webhook/unconfirmed-order.js";
 
 const createAgent = async (
   agentName,
@@ -84,6 +85,12 @@ const createAgent = async (
           managerNumber: "TBD",
         },
       });
+
+      // Register agent dynamically for unconfirmed order support
+      if (agent.vapiAgentId && agent.vapiAgentId !== "N/A") {
+        registerUnconfirmedAssistant(agent.vapiAgentId);
+      }
+      registerUnconfirmedAssistant(agent.id);
 
       // Create Training Session
       const session = await tx.trainingSession.create({

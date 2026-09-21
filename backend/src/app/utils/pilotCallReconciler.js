@@ -20,8 +20,14 @@ export const reconcilePilotCalls = async () => {
     if (!response.ok) throw new Error(`Vapi returned ${response.status}`);
     const calls = await response.json();
     const linkedAgents = await prisma.agent.findMany({
-      where:{ OR:[{ id:{ in:[...UNCONFIRMED_ASSISTANTS] } }, { vapiAgentId:{ in:[...UNCONFIRMED_ASSISTANTS] } }] },
-      select:{ id:true, vapiAgentId:true },
+      where: {
+        OR: [
+          { status: "active" },
+          { id: { in: [...UNCONFIRMED_ASSISTANTS] } },
+          { vapiAgentId: { in: [...UNCONFIRMED_ASSISTANTS] } },
+        ],
+      },
+      select: { id: true, vapiAgentId: true },
     });
     const linkedAssistantIds = new Set(linkedAgents.map(agent => agent.vapiAgentId || agent.id));
     const candidates = (Array.isArray(calls) ? calls : [])

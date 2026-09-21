@@ -20,6 +20,31 @@ export function isUnconfirmedSupported(assistantId) {
   return UNCONFIRMED_ASSISTANTS.has(assistantId);
 }
 
+/**
+ * Dynamically syncs all registered agents from the database into the
+ * unconfirmed order supported assistants set so every new and existing agent
+ * supports unconfirmed order recovery out-of-the-box.
+ */
+export async function syncRegisteredAssistants(prismaClient) {
+  if (!prismaClient?.agent) return;
+  try {
+    const agents = await prismaClient.agent.findMany({
+      select: { id: true, vapiAgentId: true },
+    });
+    for (const a of agents) {
+      if (a.id) UNCONFIRMED_ASSISTANTS.add(String(a.id).trim());
+      if (a.vapiAgentId && a.vapiAgentId !== "N/A") {
+        UNCONFIRMED_ASSISTANTS.add(String(a.vapiAgentId).trim());
+      }
+    }
+  } catch (err) {
+    console.error(
+      "❌ [UnconfirmedOrder] Failed to sync registered assistants:",
+      err.message,
+    );
+  }
+}
+
 const text = (value) =>
   typeof value === "string"
     ? value.replace(/[\x00-\x1f\x7f]/g, " ").trim()
