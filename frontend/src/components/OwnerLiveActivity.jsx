@@ -55,18 +55,24 @@ export default function OwnerLiveActivity({ liveCalls, agentsInUse, live }) {
         <div
           className={`flex-shrink-0 w-36 h-36 rounded-full flex flex-col items-center justify-center relative transition-all duration-300 ${
             hasLiveCalls
-              ? "border-[5px] border-[#2563EB]"
-              : "border-[3px] border-gray-800"
+              ? "border-[6px] border-[#2F68FE] bg-[#151C2C] shadow-[0_0_30px_rgba(47,104,254,0.3)]"
+              : "border-[3px] border-gray-800 bg-transparent"
           }`}
         >
           <Icon
             icon="lucide:radio"
-            className="text-white text-xl mb-1"
+            className={`text-2xl mb-0.5 ${
+              hasLiveCalls ? "text-[#93C5FD]" : "text-gray-400"
+            }`}
           />
-          <span className="text-4xl font-bold text-white leading-none">
+          <span className="text-4xl font-bold text-white leading-none tracking-tight my-0.5">
             {liveCalls}
           </span>
-          <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mt-1.5">
+          <span
+            className={`text-[10px] font-semibold uppercase tracking-[0.2em] mt-1 ${
+              hasLiveCalls ? "text-[#93C5FD]" : "text-gray-400"
+            }`}
+          >
             LIVE CALLS
           </span>
         </div>
