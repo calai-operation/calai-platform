@@ -101,6 +101,7 @@ export default function Dashboard() {
   const offlinePrinters = printers?.filter(p => p.status?.toLowerCase() !== "online") || [];
   const onlinePrinters = printers?.filter(p => p.status?.toLowerCase() === "online") || [];
   const hasOffline = offlinePrinters.length > 0;
+  const isPrinterConnected = totalPrinters > 0 && !hasOffline;
 
   // Safely get today's calls from insights daily array
   const todayCalls = insights?.daily && insights.daily.length > 0 
@@ -203,8 +204,8 @@ export default function Dashboard() {
         live={live} 
       />
 
-      {/* Disconnected Printer Warning Banner (Only shown when a printer is offline) */}
-      {hasOffline && (
+      {/* Disconnected / Unconfigured Printer Warning Banner (Only shown when printer is NOT connected or offline) */}
+      {!isPrinterConnected && (
         <div className="bg-[#1E1113] border border-[#381B20] rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all">
           <div className="flex items-center gap-4">
             <div className="w-11 h-11 rounded-xl bg-[#E74C3C]/10 border border-[#E74C3C]/20 flex items-center justify-center flex-shrink-0">
@@ -213,26 +214,32 @@ export default function Dashboard() {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h4 className="text-[#E74C3C] font-semibold text-[15px]">
-                  {offlinePrinters.length === 1 && totalPrinters === 1
-                    ? "Printer not connected"
-                    : `${offlinePrinters.length} of ${totalPrinters} printers not connected`}
+                  Printer not connected
                 </h4>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#E74C3C]/15 text-[#E74C3C] border border-[#E74C3C]/30 uppercase tracking-wide">
-                  Offline
+                  {totalPrinters === 0 ? "Not Configured" : "Offline"}
                 </span>
               </div>
               <div className="text-[#E74C3C]/80 text-xs mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <span className="font-medium text-white/90">
-                  {offlinePrinters.map(p => p.deviceName || p.device_name || "Unknown Printer").join(", ")}
-                </span>
-                {offlinePrinters[0]?.ipAddress && (
+                {totalPrinters === 0 ? (
                   <span className="text-gray-400">
-                    • IP: {offlinePrinters[0].ipAddress}
+                    No printer configured • Connect your thermal receipt printer to automatically print incoming orders.
                   </span>
+                ) : (
+                  <>
+                    <span className="font-medium text-white/90">
+                      {offlinePrinters.map(p => p.deviceName || p.device_name || "Unknown Printer").join(", ")}
+                    </span>
+                    {offlinePrinters[0]?.ipAddress && (
+                      <span className="text-gray-400">
+                        • IP: {offlinePrinters[0].ipAddress}
+                      </span>
+                    )}
+                    <span className="text-gray-400">
+                      • Last seen: {offlinePrinters[0]?.lastSeen ? formatUKDateTime(offlinePrinters[0].lastSeen) : "Never"}
+                    </span>
+                  </>
                 )}
-                <span className="text-gray-400">
-                  • Last seen: {offlinePrinters[0]?.lastSeen ? formatUKDateTime(offlinePrinters[0].lastSeen) : "Never"}
-                </span>
               </div>
             </div>
           </div>
@@ -240,7 +247,7 @@ export default function Dashboard() {
             to="/owner/printer"
             className="text-sm font-medium text-[#E74C3C] hover:underline hover:text-[#E74C3C]/80 flex items-center gap-1.5 flex-shrink-0 self-end sm:self-center"
           >
-            Check printer <Icon icon="lucide:arrow-up-right" className="text-xs" />
+            {totalPrinters === 0 ? "Connect printer" : "Check printer"} <Icon icon="lucide:arrow-up-right" className="text-xs" />
           </Link>
         </div>
       )}
