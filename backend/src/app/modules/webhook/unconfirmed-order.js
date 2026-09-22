@@ -1,8 +1,5 @@
-export const UNCONFIRMED_ASSISTANTS = new Set([
-  "00f1f28f-2ad0-43b7-8d76-494ed209c5c8", // Test
-  "70202223-f39f-4275-90c8-d0e6c4c21f62", // Testing Curry
-  "f06cd3ce-646c-4c0f-a058-d20b6d8e9f85", // Testing Spice (Testing Curry template clone)
-]);
+// Dynamically populated at runtime from Database and environment
+export const UNCONFIRMED_ASSISTANTS = new Set();
 
 // Dynamically load any extra assistant IDs from environment configuration
 if (process.env.UNCONFIRMED_ASSISTANTS) {
