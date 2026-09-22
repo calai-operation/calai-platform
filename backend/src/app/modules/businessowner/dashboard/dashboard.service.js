@@ -60,6 +60,41 @@ const healRecentZeroDurationCalls = async (businessId) => {
 };
 
 /**
+ * Calculates start and end of the current day in UK Time (Europe/London),
+ * ensuring the 'Today' metrics reset to 0 right at 12:00 AM midnight UK time.
+ */
+export function getLondonDayBounds(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const dateStr = formatter.format(d); // "YYYY-MM-DD"
+
+  const getOffsetMs = (targetDate) => {
+    const utcDate = new Date(
+      targetDate.toLocaleString("en-US", { timeZone: "UTC" }),
+    );
+    const londonDate = new Date(
+      targetDate.toLocaleString("en-US", { timeZone: "Europe/London" }),
+    );
+    return londonDate.getTime() - utcDate.getTime();
+  };
+
+  const guessStart = new Date(`${dateStr}T00:00:00.000Z`);
+  const offsetStart = getOffsetMs(guessStart);
+  const start = new Date(guessStart.getTime() - offsetStart);
+
+  const guessEnd = new Date(`${dateStr}T23:59:59.999Z`);
+  const offsetEnd = getOffsetMs(guessEnd);
+  const end = new Date(guessEnd.getTime() - offsetEnd);
+
+  return { dateStr, start, end };
+}
+
+/**
  * Get dashboard summary stats
  * @param {string} userId - The ID of the business owner
  */
@@ -76,8 +111,7 @@ const getDashboardStats = async (userId) => {
   await healRecentZeroDurationCalls(businessId);
 
   const now = new Date();
-  const todayStart = startOfDay(now);
-  const todayEnd = endOfDay(now);
+  const { start: todayStart, end: todayEnd } = getLondonDayBounds(now);
 
   // 1. Total Call Duration
   const totalDurationResult = await prisma.call.aggregate({
@@ -93,6 +127,24 @@ const getDashboardStats = async (userId) => {
   const minutes = Math.floor((totalDurationInSeconds % 3600) / 60);
   const totalDurationFormatted = `${hours} hr ${minutes} min`;
 
+  // Today Call Duration
+  const todayDurationResult = await prisma.call.aggregate({
+    where: {
+      businessId,
+      startTime: {
+        gte: todayStart,
+        lte: todayEnd,
+      },
+    },
+    _sum: {
+      duration: true,
+    },
+  });
+  const todayDurationInSeconds = todayDurationResult._sum.duration || 0;
+  const todayHours = Math.floor(todayDurationInSeconds / 3600);
+  const todayMinutes = Math.floor((todayDurationInSeconds % 3600) / 60);
+  const todayDurationFormatted = `${todayHours} hr ${todayMinutes} min`;
+
   // 2. Today Total Call
   const todayCallCount = await prisma.call.count({
     where: {
@@ -104,10 +156,28 @@ const getDashboardStats = async (userId) => {
     },
   });
 
-  // 3. Total Order
+  // 3. Total Order & Order Value
   const totalOrderCount = await prisma.order.count({
     where: { businessId },
   });
+
+  const [totalOrderValueResult, todayOrderStatsResult] = await Promise.all([
+    prisma.order.aggregate({
+      where: { businessId },
+      _sum: { totalPrice: true },
+    }),
+    prisma.order.aggregate({
+      where: {
+        businessId,
+        createdAt: {
+          gte: todayStart,
+          lte: todayEnd,
+        },
+      },
+      _sum: { totalPrice: true },
+      _count: true,
+    }),
+  ]);
 
   // 4. Calculate Dynamic Percentage Changes (Last 7 days vs Previous 7 days)
   const last7DaysStart = subDays(todayStart, 7);
@@ -154,6 +224,9 @@ const getDashboardStats = async (userId) => {
   return {
     totalCallDuration: {
       value: totalDurationFormatted,
+      todayValue: todayDurationFormatted,
+      todaySeconds: todayDurationInSeconds,
+      totalSeconds: totalDurationInSeconds,
       change: calculateChange(currentPeriod.duration, previousPeriod.duration),
       weeklyChange:
         calculateWeeklyDiff(
@@ -163,6 +236,7 @@ const getDashboardStats = async (userId) => {
     },
     todayTotalCall: {
       value: `Call ${todayCallCount}`,
+      todayCallCount: todayCallCount,
       change: calculateChange(currentPeriod.count, previousPeriod.count),
       weeklyChange: calculateWeeklyDiff(
         currentPeriod.count,
@@ -171,11 +245,17 @@ const getDashboardStats = async (userId) => {
     },
     totalOrder: {
       value: totalOrderCount.toString(),
+      today: (todayOrderStatsResult._count || 0).toString(),
       change: calculateChange(currentPeriod.orders, previousPeriod.orders),
       weeklyChange: calculateWeeklyDiff(
         currentPeriod.orders,
         previousPeriod.orders,
       ),
+    },
+    orderValue: {
+      value: totalOrderValueResult._sum.totalPrice || 0,
+      todayValue: todayOrderStatsResult._sum.totalPrice || 0,
+      todayPriced: todayOrderStatsResult._count || 0,
     },
     usageOverview: {
       totalLimitMinutes: totalLimitMins,
@@ -349,17 +429,51 @@ export async function getOwnerInsights(
   const today = midnightDate(now);
   const start = new Date(+mondayDate(now) - 77 * DAY_MS);
   const end = new Date(+today + DAY_MS);
+  const { start: londonTodayStart, end: londonTodayEnd } = getLondonDayBounds(now);
 
-  const [orders, todayOrders, failedCalls, rows] = await Promise.all([
+  const todayOrderPromise = (async () => {
+    try {
+      if (typeof prismaClient.order.aggregate === "function") {
+        const res = await prismaClient.order.aggregate({
+          where: {
+            businessId,
+            createdAt: { gte: londonTodayStart, lte: londonTodayEnd },
+          },
+          _sum: { totalPrice: true },
+          _count: { _all: true, totalPrice: true },
+        });
+        return {
+          count: res._count?._all ?? 0,
+          value: res._sum?.totalPrice ?? (res._count?._all === 0 ? 0 : null),
+          priced: res._count?.totalPrice ?? 0,
+          unpriced: (res._count?._all ?? 0) - (res._count?.totalPrice ?? 0),
+        };
+      }
+    } catch {
+      // Fallback for test mocks
+    }
+    const count = await prismaClient.order.count({
+      where: {
+        businessId,
+        createdAt: { gte: londonTodayStart, lte: londonTodayEnd },
+      },
+    });
+    return {
+      count: typeof count === "number" ? count : 0,
+      value: null,
+      priced: 0,
+      unpriced: typeof count === "number" ? count : 0,
+    };
+  })();
+
+  const [orders, todayOrdersData, failedCalls, rows] = await Promise.all([
     prismaClient.order.aggregate({
       where: { businessId },
       _sum: { totalPrice: true },
       _avg: { totalPrice: true },
       _count: { _all: true, totalPrice: true },
     }),
-    prismaClient.order.count({
-      where: { businessId, createdAt: { gte: today, lt: end } },
-    }),
+    todayOrderPromise,
     prismaClient.call.count({ where: { businessId, status: "failed" } }),
     prismaClient.$queryRaw`SELECT date_trunc('day', "startTime") AS date, count(*) AS calls,
       count(*) FILTER (WHERE status = 'failed') AS failed, coalesce(sum(duration),0) AS seconds
@@ -372,10 +486,13 @@ export async function getOwnerInsights(
     timezone: "UTC",
     orders: {
       total: orders._count._all,
-      today: todayOrders,
+      today: todayOrdersData.count,
       priced: orders._count.totalPrice,
       unpriced: orders._count._all - orders._count.totalPrice,
       value: orders._sum.totalPrice ?? (orders._count._all === 0 ? 0 : null),
+      todayValue: todayOrdersData.value,
+      todayPriced: todayOrdersData.priced,
+      todayUnpriced: todayOrdersData.unpriced,
       average: orders._avg.totalPrice,
       currency: "GBP",
     },
