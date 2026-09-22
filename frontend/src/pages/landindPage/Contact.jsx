@@ -93,7 +93,8 @@ const Contact = () => {
                   <div className="w-10 h-10 rounded-full bg-[#59168B]/30 flex items-center justify-center shrink-0 border border-[#C27AFF]/30">
                     <FiPhone className="text-lg text-[#00D3F3]" />
                   </div>
-                  <span className="text-sm font-medium">+447719436543</span>
+                  <span className="text-sm font-medium">+0333 339 9856
+</span>
                 </div>
                 <div className="flex items-center gap-4 text-gray-200">
                   <div className="w-10 h-10 rounded-full bg-[#59168B]/30 flex items-center justify-center shrink-0 border border-[#C27AFF]/30">

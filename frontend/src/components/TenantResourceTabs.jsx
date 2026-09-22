@@ -121,9 +121,7 @@ const TenantResourceTabs = ({ tenant, id, viewTenantData }) => {
       width: "20%",
       sortable: true,
       render: (row) => (
-        <div className="text-left text-gray-200">
-          {formatUKDate(row.date)}
-        </div>
+        <div className="text-left text-gray-200">{formatUKDate(row.date)}</div>
       ),
     },
     {
@@ -214,7 +212,11 @@ const TenantResourceTabs = ({ tenant, id, viewTenantData }) => {
       sortable: true,
       render: (row) => (
         <div className="text-left text-gray-200">
-          {formatUKDate(row.created_date && row.created_date !== "N/A" ? row.created_date : row.created_at)}
+          {formatUKDate(
+            row.created_date && row.created_date !== "N/A"
+              ? row.created_date
+              : row.created_at,
+          )}
         </div>
       ),
     },
@@ -270,7 +272,9 @@ const TenantResourceTabs = ({ tenant, id, viewTenantData }) => {
       width: "20%",
       render: (row) => (
         <div className="text-left text-gray-200">
-          {formatUKDate(row.date && row.date !== "N/A" ? row.date : row.created_at)}
+          {formatUKDate(
+            row.date && row.date !== "N/A" ? row.date : row.created_at,
+          )}
         </div>
       ),
     },
@@ -319,6 +323,49 @@ const TenantResourceTabs = ({ tenant, id, viewTenantData }) => {
       ),
     },
     {
+      key: "orderType",
+      Title: "Order Type",
+      width: "12%",
+      render: (row) => {
+        const type = (row.orderType || "N/A").toUpperCase();
+        if (type === "DELIVERY") {
+          return (
+            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-medium text-purple-400 bg-purple-500/10 border border-purple-500/30 whitespace-nowrap uppercase">
+              {type}
+            </span>
+          );
+        }
+        return (
+          <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-medium text-blue-400 bg-blue-500/10 border border-blue-500/30 whitespace-nowrap uppercase">
+            {type}
+          </span>
+        );
+      },
+    },
+    {
+      key: "confirmationStatus",
+      Title: "Status",
+      width: "12%",
+      render: (row) => {
+        const status = row.confirmationStatus || "Pending";
+        const isUnconfirmed = status.toLowerCase().includes("unconfirm");
+
+        if (isUnconfirmed) {
+          return (
+            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-medium text-orange-400 bg-orange-500/10 border border-orange-500/30 whitespace-nowrap capitalize">
+              {status}
+            </span>
+          );
+        }
+        return (
+          <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-medium text-blue-400 bg-blue-500/10 border border-blue-500/30 whitespace-nowrap capitalize">
+            {status}
+          </span>
+        );
+      },
+    },
+
+    {
       key: "time",
       Title: "Time",
       width: "10%",
@@ -332,16 +379,10 @@ const TenantResourceTabs = ({ tenant, id, viewTenantData }) => {
       width: "10%",
       render: (row) => (
         <div className="text-left text-gray-200">
-          {formatUKDate(row.date && row.date !== "N/A" ? row.date : row.created_at)}
+          {formatUKDate(
+            row.date && row.date !== "N/A" ? row.date : row.created_at,
+          )}
         </div>
-      ),
-    },
-    {
-      key: "orderType",
-      Title: "Order Type",
-      width: "10%",
-      render: (row) => (
-        <div className="text-left text-gray-200">{row.orderType || "N/A"}</div>
       ),
     },
     {
@@ -635,7 +676,10 @@ const TenantResourceTabs = ({ tenant, id, viewTenantData }) => {
                         Product name
                       </th>
                       <th className="py-4 text-[14px] font-semibold text-white text-center">
-                        Order Quantity
+                        Quantity
+                      </th>
+                      <th className="py-4 text-[14px] font-semibold text-white text-center">
+                        Notes
                       </th>
                       <th className="py-4 text-[14px] font-semibold text-white text-right">
                         Price
@@ -656,6 +700,9 @@ const TenantResourceTabs = ({ tenant, id, viewTenantData }) => {
                             <span className="inline-block px-4">
                               {product.quantity}
                             </span>
+                          </td>
+                          <td className="py-5 text-[14px] text-gray-300 text-center">
+                            {product.notes || "N/A"}
                           </td>
                           <td className="py-5 text-[14px] text-gray-300 text-right">
                             £{product.unit_prize || 0}

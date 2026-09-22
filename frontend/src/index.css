@@ -3,6 +3,22 @@
 
 
 
+@keyframes border-wave {
+  0% {
+    box-shadow: 0 0 0 0 var(--wave-color);
+  }
+  70% {
+    box-shadow: 0 0 0 20px rgba(0, 0, 0, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+  }
+}
+
+.animate-border-wave {
+  animation: border-wave 2s infinite;
+}
+
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;

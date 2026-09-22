@@ -45,16 +45,31 @@ const OrderList = () => {
 
   const columns = [
     { key: "number", Title: "Number", width: "15%" },
-    { key: "customerName", Title: "Customer Name", width: "20%" },
+    { 
+      key: "customerName", 
+      Title: "Customer Name", 
+      width: "20%",
+      render: (row) => row.customerName || "N/A"
+    },
     {
       key: "orderType",
       Title: "Order Type",
       width: "15%",
-      render: (row) => (
-        <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-medium text-gray-300 bg-gray-800/50 border border-gray-700 whitespace-nowrap">
-          {row.orderType || "N/A"}
-        </span>
-      ),
+      render: (row) => {
+        const type = (row.orderType || "N/A").toUpperCase();
+        if (type === "DELIVERY") {
+          return (
+            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-medium text-purple-400 bg-purple-500/10 border border-purple-500/30 whitespace-nowrap uppercase">
+              {type}
+            </span>
+          );
+        }
+        return (
+          <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-medium text-blue-400 bg-blue-500/10 border border-blue-500/30 whitespace-nowrap uppercase">
+            {type}
+          </span>
+        );
+      },
     },
     {
       key: "confirmationStatus",
@@ -184,7 +199,10 @@ const OrderList = () => {
                           Product name
                         </th>
                         <th className="py-4 text-[14px] font-semibold text-white text-center">
-                          Order Quantity
+                          Quantity
+                        </th>
+                        <th className="py-4 text-[14px] font-semibold text-white text-center">
+                          Notes
                         </th>
                         <th className="py-4 text-[14px] font-semibold text-white text-right">
                           Price
@@ -206,6 +224,9 @@ const OrderList = () => {
                                 {product.quantity}
                               </span>
                             </td>
+                            <td className="py-5 text-[14px] text-gray-300 text-center">
+                            {product.notes || "N/A"}
+                          </td>
                             <td className="py-5 text-[14px] text-gray-300 text-right">
                               £{product.unit_prize || 0}
                             </td>

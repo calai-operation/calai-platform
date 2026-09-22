@@ -21,11 +21,10 @@ const HelpSupport = () => {
                 Business Number
               </p>
               <p className="text-white text-[15px] font-semibold">
-                +447719436543
+                +0333 339 9856
               </p>
             </div>
           </div>
-
           <div className="w-full h-px bg-white/5" />
 
           {/* Email */}
