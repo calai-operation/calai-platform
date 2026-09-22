@@ -429,7 +429,8 @@ export async function getOwnerInsights(
   const today = midnightDate(now);
   const start = new Date(+mondayDate(now) - 77 * DAY_MS);
   const end = new Date(+today + DAY_MS);
-  const { start: londonTodayStart, end: londonTodayEnd } = getLondonDayBounds(now);
+  const { start: londonTodayStart, end: londonTodayEnd } =
+    getLondonDayBounds(now);
 
   const todayOrderPromise = (async () => {
     try {
