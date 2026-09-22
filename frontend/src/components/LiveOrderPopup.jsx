@@ -14,7 +14,13 @@ const LiveOrderPopup = () => {
   useEffect(() => {
     if (incomingOrder) {
       try {
-        const audio = new Audio('/notification.wav');
+        const isUnconfirmed =
+          incomingOrder.confirmationStatus?.toLowerCase() === "unconfirmed" ||
+          incomingOrder.status?.toLowerCase() === "unconfirmed" ||
+          incomingOrder.isConfirmed === false;
+
+        const audioPath = isUnconfirmed ? '/unconfirmed-notification.wav' : '/notification.wav';
+        const audio = new Audio(audioPath);
         audio.loop = true; // Loop the sound
         audioRef.current = audio;
         audio.play().catch(e => console.log("Audio play blocked by browser", e));
@@ -105,7 +111,11 @@ const LiveOrderPopup = () => {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-      <div className={`bg-[#0E0E10] border ${isUnconfirmed ? 'border-amber-600/40 shadow-[0_0_40px_rgba(217,119,6,0.2)]' : 'border-[#272727] shadow-[0_0_40px_rgba(37,99,235,0.15)]'} rounded-2xl w-full max-w-[500px] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300`}>
+      <div 
+        className="relative w-full max-w-[500px] rounded-2xl animate-border-wave"
+        style={{ '--wave-color': isUnconfirmed ? 'rgba(245, 158, 11, 0.5)' : 'rgba(59, 130, 246, 0.5)' }}
+      >
+        <div className={`relative bg-[#0E0E10] border ${isUnconfirmed ? 'border-amber-500 shadow-[0_0_40px_rgba(217,119,6,0.3)]' : 'border-blue-500 shadow-[0_0_40px_rgba(37,99,235,0.3)]'} rounded-2xl w-full overflow-hidden flex flex-col animate-in zoom-in-95 duration-300`}>
         
         {/* Header */}
         <div className={`p-5 relative ${isUnconfirmed ? 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700' : 'bg-gradient-to-r from-blue-600 to-indigo-600'}`}>
@@ -166,12 +176,16 @@ const LiveOrderPopup = () => {
             
             <div className="flex items-start gap-3 text-sm">
               <User className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" />
-              <span className="text-gray-200 font-medium">{incomingOrder.customerName || 'Unknown Customer'}</span>
+              <span className="text-gray-200 font-medium">
+                {!incomingOrder.customerName || incomingOrder.customerName.includes('{{') ? 'Unknown Customer' : incomingOrder.customerName}
+              </span>
             </div>
             
             <div className="flex items-start gap-3 text-sm">
               <Phone className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" />
-              <span className="text-gray-200">{incomingOrder.number || 'N/A'}</span>
+              <span className="text-gray-200">
+                {!incomingOrder.number || incomingOrder.number.includes('{{') ? 'Web Call (Test)' : incomingOrder.number}
+              </span>
             </div>
 
             <div className="flex items-start gap-3 text-sm">
@@ -225,6 +239,8 @@ const LiveOrderPopup = () => {
           >
             {isUnconfirmed ? "Acknowledge Unconfirmed Order" : "Acknowledge"}
           </button>
+        </div>
+        
         </div>
         
       </div>
