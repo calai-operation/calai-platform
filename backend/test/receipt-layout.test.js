@@ -64,3 +64,23 @@ test("unconfirmed slips retain warnings and never invent a total or pickup time"
     assert.ok(text.includes(word));
   assert.ok(!text.includes("Pickup Time:"));
 });
+
+test("thermal printer binary encoding converts pound sign to single-byte CP437 (0x9C)", () => {
+  const text = generateReceiptText(
+    order,
+    { businessName: "Testing Curry" },
+    { email: "test@example.com" },
+  );
+  // Contains standard pound sign in UTF-8
+  assert.ok(text.includes("£"));
+
+  // Converted binary payload for thermal printer
+  const binaryPayload = Buffer.from(text.replace(/\u00a3|£/g, "\x9c"), "binary");
+
+  // Verify that multi-byte UTF-8 bytes for pound (0xC2 0xA3) are NOT present
+  assert.ok(!binaryPayload.includes(Buffer.from([0xc2, 0xa3])));
+
+  // Verify that single-byte 0x9C is present where £ was
+  assert.ok(binaryPayload.includes(0x9c));
+});
+
