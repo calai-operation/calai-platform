@@ -37,19 +37,20 @@ function httpRequest(urlStr, method = "GET", bodyData = null) {
       };
 
       const req = clientLib.request(options, (res) => {
-        let responseText = "";
-        res.setEncoding("utf-8");
+        const chunks = [];
 
         res.on("data", (chunk) => {
-          responseText += chunk;
+          chunks.push(typeof chunk === "string" ? Buffer.from(chunk, "binary") : chunk);
         });
 
         res.on("end", () => {
-          let data = responseText;
+          const rawBuffer = Buffer.concat(chunks);
+          let data;
           try {
-            data = JSON.parse(responseText);
+            data = JSON.parse(rawBuffer.toString("utf-8"));
           } catch {
-            // Keep as raw text
+            // Keep as binary string so 0x9c and extended ASCII bytes are preserved intact
+            data = rawBuffer.toString("binary");
           }
           resolve({ status: res.statusCode, data });
         });
@@ -138,7 +139,7 @@ function sendToNetworkPrinter(ip, port, textContent) {
       const initCommand = Buffer.from([0x1b, 0x74, 0x00]);
       
       // Replace Pound (£) symbol with its CP437 byte value (0x9C)
-      const processedText = textContent.replace(/£/g, '\x9c');
+      const processedText = textContent.replace(/£|\u00a3/g, '\x9c');
       const textBuffer = Buffer.from(processedText, "binary");
       
       const payload = Buffer.concat([initCommand, textBuffer]);
@@ -225,7 +226,7 @@ async function pollServer() {
         // Local Windows USB Printing
         const tempPath = path.resolve("temp-receipt.txt");
         // Replace £ with its CP437 byte value (0x9C) for standard raw thermal driver printing
-        const processedText = receiptText.replace(/£/g, '\x9c');
+        const processedText = receiptText.replace(/£|\u00a3/g, '\x9c');
         fs.writeFileSync(tempPath, processedText, "binary");
         try {
           await sendToUsbPrinter(tempPath);
