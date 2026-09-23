@@ -90,6 +90,7 @@ export default function Dashboard() {
   const todayOrders = insights?.orders?.today ?? stats?.totalOrder?.today ?? 0;
   
   const orderValue = insights?.orders?.value ?? stats?.orderValue?.value ?? 0;
+  const todayValue = insights?.orders?.today ?? stats?.orderValue?.today ?? 0;
   const unpricedOrders = insights?.orders?.unpriced ?? stats?.orderValue?.noPriceCount ?? 0;
   const currencySymbol = insights?.orders?.currency === "GBP" ? "£" : (insights?.orders?.currency === "USD" ? "$" : "£");
 
@@ -115,32 +116,32 @@ export default function Dashboard() {
   const statsData = [
     {
       title: "Total orders",
-      value: totalOrders,
+      value: todayOrders,
       icon: "lucide:shopping-bag",
       iconBg: "bg-transparent",
       trend: stats?.totalOrder?.change ?? "0%",
       trendText: stats?.totalOrder?.weeklyChange ?? "+0 this week",
-      prefixText: `${todayOrders} today`,
+      prefixText: `${totalOrders} total`,
       showArrow: true
     },
     {
       title: "Order value",
-      value: `${currencySymbol}${Number(orderValue).toFixed(2)}`,
+      value: `${currencySymbol}${Number(todayValue).toFixed(2)}`,
       icon: "lucide:pound-sterling",
       iconBg: "bg-transparent",
       trend: "",
       trendText: "recorded value",
-      prefixText: `${unpricedOrders} orders without a price`,
+      prefixText: `${currencySymbol}${Number(orderValue).toFixed(2)}`,
       showArrow: false
     },
     {
       title: "Total calls",
-      value: totalCalls,
+      value: todayCalls,
       icon: "lucide:phone",
       iconBg: "bg-transparent",
       trend: stats?.todayTotalCall?.change ?? "0%",
       trendText: stats?.todayTotalCall?.weeklyChange ?? "+0 this week",
-      prefixText: `${todayCalls} today`,
+      prefixText: `${totalCalls} total`,
       showArrow: true
     },
     {
@@ -155,7 +156,7 @@ export default function Dashboard() {
     },
     {
       title: "Total call duration",
-      value: stats?.totalCallDuration?.value || "0 hr 0 min",
+      value: stats?.totalCallDuration?.todayValue || "0 hr 0 min",
       icon: "lucide:clock",
       iconBg: "bg-transparent",
       trend: stats?.totalCallDuration?.change || "0%",
@@ -163,6 +164,7 @@ export default function Dashboard() {
         stats?.totalCallDuration?.weeklyChange,
         "0 min this week"
       ),
+      prefixText: `${stats?.totalCallDuration?.value || "0 hr 0 min"} total`,
       showArrow: true
     },
     {
