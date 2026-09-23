@@ -16,6 +16,21 @@ export async function syncOrderRecord({
 }) {
   const orderItems =
     orderData.final_items || orderData.order_items || orderData.items || [];
+  const generalNote =
+    orderData.notes ||
+    orderData.order_notes ||
+    orderData.specialInstructions ||
+    orderData.special_instructions;
+  if (
+    generalNote &&
+    Array.isArray(orderItems) &&
+    orderItems.length > 0 &&
+    typeof orderItems[0] === "object" &&
+    orderItems[0] !== null &&
+    !orderItems[0].order_notes
+  ) {
+    orderItems[0].order_notes = String(generalNote).trim();
+  }
   const totalPrice = Number(
     orderData.total_price || orderData.totalPrice || orderData.total || 0,
   );

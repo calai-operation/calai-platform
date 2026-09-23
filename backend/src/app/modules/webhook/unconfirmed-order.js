@@ -118,12 +118,17 @@ export function unconfirmedCandidate(
           structuredData.items,
       );
   const items = rawItems
-    .map((item) => ({
-      product_name: text(item.product_name).slice(0, 200),
-      quantity: Number(item.quantity || 1),
-      unit_prize: amount(item.unit_prize ?? item.unit_price ?? item.price),
-      notes: text(item.notes).slice(0, 500),
-    }))
+    .map((item) => {
+      const it = {
+        product_name: text(item.product_name).slice(0, 200),
+        quantity: Number(item.quantity || 1),
+        unit_prize: amount(item.unit_prize ?? item.unit_price ?? item.price),
+        notes: text(item.notes).slice(0, 500),
+      };
+      const on = text(item.order_notes).slice(0, 500);
+      if (on) it.order_notes = on;
+      return it;
+    })
     .filter(
       (item) =>
         item.product_name &&
@@ -133,6 +138,11 @@ export function unconfirmedCandidate(
     );
   // Calls without a captured item are enquiries or empty calls, not printable orders.
   if (!items.length) return null;
+  const generalNote =
+    text(structuredData.notes || structuredData.order_notes).slice(0, 500) || "";
+  if (generalNote && !items[0].order_notes) {
+    items[0].order_notes = generalNote;
+  }
   return {
     confirmationStatus: "unconfirmed",
     unconfirmedReason:

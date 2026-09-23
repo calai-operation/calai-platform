@@ -2,7 +2,7 @@ import cron from "node-cron";
 import axios from "axios";
 import prisma from "../prisma/client.js";
 import { envVars } from "../config/env.js";
-import {isBusinessCurrentlyOpen} from './business-hours.js';
+import { isBusinessCurrentlyOpen } from "./business-hours.js";
 
 // In-memory cache to prevent unnecessary duplicate API calls
 // Key: assistant_id, Value: boolean (true/false)
