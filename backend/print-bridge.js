@@ -32,6 +32,7 @@ function httpRequest(urlStr, method = "GET", bodyData = null) {
         method: method,
         headers: {
           "Content-Type": "application/json",
+          "x-print-bridge": "utf8",
           Accept: "*/*",
         },
       };
@@ -49,8 +50,13 @@ function httpRequest(urlStr, method = "GET", bodyData = null) {
           try {
             data = JSON.parse(rawBuffer.toString("utf-8"));
           } catch {
-            // Keep as binary string so 0x9c and extended ASCII bytes are preserved intact
-            data = rawBuffer.toString("binary");
+            const isUtf8 = res.headers["content-type"] && res.headers["content-type"].includes("utf-8");
+            if (isUtf8) {
+              data = rawBuffer.toString("utf-8");
+            } else {
+              // Keep as binary string so 0x9c and extended ASCII bytes are preserved intact
+              data = rawBuffer.toString("binary");
+            }
           }
           resolve({ status: res.statusCode, data });
         });
@@ -225,9 +231,8 @@ async function pollServer() {
       if (config.PRINTER_TYPE === "USB") {
         // Local Windows USB Printing
         const tempPath = path.resolve("temp-receipt.txt");
-        // Replace £ with its CP437 byte value (0x9C) for standard raw thermal driver printing
-        const processedText = receiptText.replace(/£|\u00a3/g, '\x9c');
-        fs.writeFileSync(tempPath, processedText, "binary");
+        // Write UTF-8 with BOM so Windows PowerShell Get-Content reads it correctly
+        fs.writeFileSync(tempPath, "\ufeff" + receiptText, "utf8");
         try {
           await sendToUsbPrinter(tempPath);
           console.log(
