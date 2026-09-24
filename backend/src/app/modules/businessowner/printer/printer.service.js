@@ -1,5 +1,5 @@
-import {generateReceiptText} from "../../../utils/receipt.js";
-export {generateReceiptText} from "../../../utils/receipt.js";
+import { generateReceiptText } from "../../../utils/receipt.js";
+export { generateReceiptText } from "../../../utils/receipt.js";
 import { StatusCodes } from "http-status-codes";
 import prisma from "../../../prisma/client.js";
 import DevBuildError from "../../../lib/DevBuildError.js";
