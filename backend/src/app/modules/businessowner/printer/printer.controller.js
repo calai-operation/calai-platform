@@ -161,24 +161,8 @@ const handlePrinterGetJob = async (req, res) => {
 
     const receiptText = await PrinterService.getPrintJobContent(jobToken);
 
-    if (req.headers["x-print-bridge"] === "utf8") {
-      res.setHeader("Content-Type", "text/plain; charset=utf-8");
-      return res.status(StatusCodes.OK).send(receiptText);
-    }
-
-    // For thermal printers (Star CloudPRNT & ESC/POS):
-    // Standard thermal receipt printers operate in Code Page 437/850 by default.
-    // In CP437/850, single-byte 0x9C (156) is the British pound symbol (£).
-    // When sent as UTF-8, £ becomes 2 bytes (0xC2 0xA3) which the printer renders as 'тú'.
-    // We map £ (U+00A3) to single-byte 0x9C and transmit as a raw binary buffer so it prints £ cleanly.
-    const binaryData = Buffer.from(
-      receiptText.replace(/\u00a3|£/g, "\x9c"),
-      "binary",
-    );
-
-    res.setHeader("Content-Type", "text/plain");
-    res.setHeader("Content-Length", binaryData.length);
-    return res.status(StatusCodes.OK).send(binaryData);
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    return res.status(StatusCodes.OK).send(receiptText);
   } catch (error) {
     console.error("CloudPRNT GetJob Error:", error);
     return res

@@ -7,7 +7,7 @@ import { exec } from "child_process";
 
 const CONFIG_FILE_NAME = "config.json";
 const DEFAULT_CONFIG = {
-  BACKEND_URL: "https://test13.fireai.agency/api",
+  BACKEND_URL: "https://calai.info/api",
   PRINTER_TOKEN: "PASTE_YOUR_PRINTER_TOKEN_HERE",
   PRINTER_MAC: "",
   PRINTER_TYPE: "NETWORK", // "NETWORK" or "USB"
@@ -32,31 +32,24 @@ function httpRequest(urlStr, method = "GET", bodyData = null) {
         method: method,
         headers: {
           "Content-Type": "application/json",
-          "x-print-bridge": "utf8",
           Accept: "*/*",
         },
       };
 
       const req = clientLib.request(options, (res) => {
-        const chunks = [];
+        let responseText = "";
+        res.setEncoding("utf-8");
 
         res.on("data", (chunk) => {
-          chunks.push(typeof chunk === "string" ? Buffer.from(chunk, "binary") : chunk);
+          responseText += chunk;
         });
 
         res.on("end", () => {
-          const rawBuffer = Buffer.concat(chunks);
-          let data;
+          let data = responseText;
           try {
-            data = JSON.parse(rawBuffer.toString("utf-8"));
+            data = JSON.parse(responseText);
           } catch {
-            const isUtf8 = res.headers["content-type"] && res.headers["content-type"].includes("utf-8");
-            if (isUtf8) {
-              data = rawBuffer.toString("utf-8");
-            } else {
-              // Keep as binary string so 0x9c and extended ASCII bytes are preserved intact
-              data = rawBuffer.toString("binary");
-            }
+            // Keep as raw text
           }
           resolve({ status: res.statusCode, data });
         });
@@ -139,15 +132,15 @@ function sendToNetworkPrinter(ip, port, textContent) {
       console.log(
         `[${new Date().toLocaleTimeString()}] 📡 Sending ESC/POS print job data...`,
       );
-      
+
       // Select Character Code Table: CP437 (Standard DOS)
       // Command: ESC t 0 (0x1B 0x74 0x00)
       const initCommand = Buffer.from([0x1b, 0x74, 0x00]);
-      
+
       // Replace Pound (£) symbol with its CP437 byte value (0x9C)
-      const processedText = textContent.replace(/£|\u00a3/g, '\x9c');
+      const processedText = textContent.replace(/£|\u00a3/g, "\x9c");
       const textBuffer = Buffer.from(processedText, "binary");
-      
+
       const payload = Buffer.concat([initCommand, textBuffer]);
 
       client.write(payload, () => {
@@ -231,8 +224,9 @@ async function pollServer() {
       if (config.PRINTER_TYPE === "USB") {
         // Local Windows USB Printing
         const tempPath = path.resolve("temp-receipt.txt");
-        // Write UTF-8 with BOM so Windows PowerShell Get-Content reads it correctly
-        fs.writeFileSync(tempPath, "\ufeff" + receiptText, "utf8");
+        // Replace £ with its CP437 byte value (0x9C) for standard raw thermal driver printing
+        const processedText = receiptText.replace(/£/g, "\x9c");
+        fs.writeFileSync(tempPath, processedText, "binary");
         try {
           await sendToUsbPrinter(tempPath);
           console.log(
