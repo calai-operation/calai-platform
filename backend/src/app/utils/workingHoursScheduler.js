@@ -34,7 +34,14 @@ export const evaluateAndUpdateAgentStatus = async (agent, force = false) => {
     `⏰ [WorkingHoursScheduler] Toggling AI Agent status for ${agent.name || assistantId} (Business: ${agent.businessId}) -> Enable: ${desiredEnable}`,
   );
 
-  // 1. Directly update Vapi Assistant configuration (firstMessage, prompt override, endCallPhrases)
+  const managerNumber =
+    agent.managerNumber &&
+    agent.managerNumber !== "TBD" &&
+    agent.managerNumber !== ""
+      ? agent.managerNumber
+      : null;
+
+  // 1. Directly update Vapi Assistant configuration (firstMessage, prompt override, transferCall)
   if (agent.vapiAgentId && envVars.VAPI_API_KEY) {
     try {
       const vapiHeaders = {
@@ -62,7 +69,7 @@ export const evaluateAndUpdateAgentStatus = async (agent, force = false) => {
 
       const expectedFirstMessage = desiredEnable
         ? `Hi, you're through to ${businessName} and I'm their virtual assistant. Would you like to place an order?`
-        : `Thank you for calling ${businessName}. We are currently closed.${hoursInfo} Please call us back during our business hours. Goodbye for now.`;
+        : "";
 
       const promptHasClosedTag = Boolean(
         existingAsst?.model?.messages?.[0]?.content?.includes(CLOSED_TAG),
@@ -103,19 +110,8 @@ export const evaluateAndUpdateAgentStatus = async (agent, force = false) => {
             }
           }
         } else {
-          // RESTAURANT IS CLOSED: Announce closed hours, inject override prompt forbidding orders, and ensure call ends
-          vapiPatchPayload.firstMessage = expectedFirstMessage;
-
-          const currentPhrases = existingAsst?.endCallPhrases || [];
-          const requiredPhrases = [
-            "goodbye for now",
-            "Goodbye for now",
-            "goodbye",
-            "Goodbye",
-          ];
-          vapiPatchPayload.endCallPhrases = Array.from(
-            new Set([...currentPhrases, ...requiredPhrases]),
-          );
+          // RESTAURANT IS CLOSED: Do NOT speak. Silently transfer the call immediately to managerNumber.
+          vapiPatchPayload.firstMessage = "";
 
           if (existingAsst?.model?.messages?.[0]?.content) {
             const currentContent = existingAsst.model.messages[0].content;
@@ -128,7 +124,11 @@ export const evaluateAndUpdateAgentStatus = async (agent, force = false) => {
               }
             }
 
-            const closedNotice = `${CLOSED_TAG}\nThe restaurant is currently CLOSED.${hoursInfo}\nCRITICAL INSTRUCTION: You CANNOT take any orders or answer menu inquiries. If the caller speaks, politely inform them that the restaurant is currently closed, state our business hours, and say "Goodbye for now." to end the call immediately. Do NOT ask them for their order under any circumstances.${END_TAG}`;
+            const transferDestinationText = managerNumber
+              ? `to the restaurant manager at ${managerNumber}`
+              : "to the restaurant staff";
+
+            const closedNotice = `${CLOSED_TAG}\nThe restaurant is currently CLOSED for automated AI ordering.\nCRITICAL INSTRUCTION: You must NOT speak, greet the caller, or say any words out loud. Immediately trigger the transferCall tool to transfer this call ${transferDestinationText}. Do NOT ask for orders, mention menu items, or answer any questions under any circumstances.${END_TAG}`;
 
             vapiPatchPayload.model = {
               ...existingAsst.model,
@@ -152,7 +152,7 @@ export const evaluateAndUpdateAgentStatus = async (agent, force = false) => {
           },
         );
         console.log(
-          `✅ [WorkingHoursScheduler] Vapi Assistant ${agent.vapiAgentId} updated for Open=${desiredEnable}`,
+          `✅ [WorkingHoursScheduler] Vapi Assistant ${agent.vapiAgentId} updated for Open=${desiredEnable} (Closed Transfer Mode: ${!desiredEnable})`,
         );
       }
     } catch (vapiErr) {
