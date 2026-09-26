@@ -2,6 +2,7 @@
 import json
 import os
 import requests
+from app.services.assistant_update import build_existing_assistant_update
 from app.config import (
     VAPI_BASE_URL,
     VAPI_HEADERS,
@@ -22,18 +23,29 @@ def create_assistant(business_id: str, system_prompt: str, business_name: str = 
     Uses business_name for customer-facing messages (firstMessage, endCall).
     """
     existing_id = None
+    existing_matches = []
     try:
         # Search for existing assistant with this name/business_id to prevent duplicates and auto-publish
         list_url = f"{VAPI_BASE_URL}/assistant"
-        list_res = requests.get(list_url, headers=VAPI_HEADERS)
+        list_res = requests.get(list_url, headers=VAPI_HEADERS, timeout=20)
+        if list_res.status_code != 200:
+            raise RuntimeError("Assistant lookup failed")
         if list_res.status_code == 200:
             assistants = list_res.json()
+            if not isinstance(assistants, list) or any(not isinstance(a, dict) for a in assistants):
+                raise ValueError("Assistant lookup returned an unsupported response")
             for ast in assistants:
-                if ast.get("name") == business_id or ast.get("metadata", {}).get("business_id") == business_id:
-                    existing_id = ast.get("id")
-                    break
+                if ast.get("name") == business_id or (ast.get("metadata") or {}).get("business_id") == business_id:
+                    existing_matches.append(ast)
     except Exception as e:
-        print(f"Warning: Failed to search for existing assistant: {e}")
+        raise RuntimeError("Existing assistant lookup failed; request cancelled") from e
+
+    if len(existing_matches) > 1:
+        raise ValueError("Multiple assistants match this business; update cancelled")
+    if existing_matches:
+        existing_id = existing_matches[0].get("id")
+        if not existing_id:
+            raise RuntimeError("Existing assistant identity unavailable; update cancelled")
 
     vapi_server_url = get_vapi_server_url() or "https://api.calai.info/api/webhook/vapi"
 
@@ -470,7 +482,18 @@ def create_assistant(business_id: str, system_prompt: str, business_name: str = 
         }
     }
 
-    print(f"DEBUG PAYLOAD TO VAPI: {json.dumps(payload, indent=2)}")
+    if existing_id:
+        current_res = requests.get(f"{VAPI_BASE_URL}/assistant/{existing_id}", headers=VAPI_HEADERS, timeout=20)
+        if current_res.status_code != 200:
+            raise RuntimeError("Existing assistant configuration could not be read; update cancelled")
+        current = current_res.json()
+        if current.get("id") != existing_id:
+            raise RuntimeError("Existing assistant identity changed; update cancelled")
+        payload = build_existing_assistant_update(
+            current, payload, business_id, business_name=business_name, manager_number=manager_number
+        )
+
+    print("Vapi assistant payload prepared")
 
     if existing_id:
         print(f"[SYNC] Assistant '{business_id}' already exists (ID: {existing_id}). Updating in-place...")
@@ -484,7 +507,7 @@ def create_assistant(business_id: str, system_prompt: str, business_name: str = 
     if response.status_code >= 400:
         error_msg = response.text
         print(f"DEBUG VAPI ERROR: {error_msg}")
-        raise Exception(f"Vapi Error: {error_msg} | Payload sent: {json.dumps(payload)}")
+        raise RuntimeError(f"Vapi assistant request failed ({response.status_code})")
 
     result = response.json()
     return result

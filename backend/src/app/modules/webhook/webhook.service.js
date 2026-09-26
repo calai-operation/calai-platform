@@ -523,7 +523,7 @@ const processVapiWebhook = async (payload) => {
       } else {
         results.push({
           toolCallId: toolCall.id,
-          result: { success: true, message: "Tool executed successfully" },
+          error: "Unsupported tool. No action was executed.",
         });
       }
     }
